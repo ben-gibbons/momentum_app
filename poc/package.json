@@ -1,0 +1,12 @@
+{
+  "name": "active-win-poc",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Proof-of-concept test for active-win foreground app detection",
+  "scripts": {
+    "test": "node test-active-win.mjs"
+  },
+  "dependencies": {
+    "active-win": "^9.0.0"
+  }
+}
