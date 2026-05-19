@@ -7,6 +7,6 @@
     "test": "node test-active-win.mjs"
   },
   "dependencies": {
-    "active-win": "^9.0.0"
+    "get-windows": "^9.3.0"
   }
 }
