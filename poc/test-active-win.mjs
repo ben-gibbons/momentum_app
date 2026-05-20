@@ -14,6 +14,10 @@
 //   Leave no open windows — should report "No visible windows".
 
 import { openWindows } from 'get-windows';
+import koffi from 'koffi';
+
+const user32 = koffi.load('user32.dll');
+const IsIconic = user32.func('bool IsIconic(void* hWnd)');
 
 const POLL_INTERVAL_MS = 10000;
 
@@ -21,11 +25,6 @@ console.log('=== active-win Proof of Concept ===');
 console.log(`Polling every ${POLL_INTERVAL_MS / 1000} seconds.`);
 console.log('Open apps across monitors, cover or minimise windows to verify filtering.');
 console.log('Press Ctrl+C to stop.\n');
-
-// Windows sets minimized window position to -32000,-32000
-function isMinimized(w) {
-  return w.bounds.x <= -30000 || w.bounds.y <= -30000;
-}
 
 // openWindows() returns windows front-to-back (z-order). A window is blocked if
 // any earlier (higher z-order) window's bounds cover its center point — mirrors
@@ -46,11 +45,18 @@ function isEdge(w) {
   return w.owner.name === 'Microsoft Edge' || w.owner.path?.toLowerCase().includes('msedge');
 }
 
+// Edge titles follow "Page Title - Microsoft​Edge" where ​ is a zero-width space (U+200B).
+// \S* absorbs the zero-width space; greedy (.*) handles multiple " - " segments in the title.
+function edgePageTitle(w) {
+  const match = w.title.match(/^(.*)\s-\sMicrosoft\S*\sEdge$/i);
+  return match ? match[1] : null;
+}
+
 async function poll() {
   try {
     const timestamp = new Date().toLocaleTimeString();
     const all = await openWindows();
-    const visible = all.filter((w, i) => !isMinimized(w) && !isCovered(w, all, i));
+    const visible = all.filter((w, i) => !IsIconic(w.id) && !isCovered(w, all, i));
 
     if (visible.length === 0) {
       console.log(`[${timestamp}] No visible windows\n`);
@@ -64,7 +70,8 @@ async function poll() {
       console.log(`  Window   : ${w.title}`);
       console.log(`  PID      : ${w.owner.processId}`);
       if (isEdge(w)) {
-        console.log(`  --> Edge detected. URL monitoring would trigger here.`);
+        const pageTitle = edgePageTitle(w);
+        console.log(`  --> Edge | Page: ${pageTitle ?? '(unknown)'}`);
       }
       console.log('');
     }
