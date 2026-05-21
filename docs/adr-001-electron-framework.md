@@ -48,9 +48,9 @@ TypeScript + React + Node.js is the stack most deeply represented in Claude's tr
 
 ### Monitoring layer is unblocked
 
-The original concern about Node.js not exposing `IsIconic` (minimized window state) was a limitation of the `get-windows` package, not Node.js itself. The `koffi` FFI library resolves this with direct Windows API calls. The Python sidecar is eliminated entirely.
+The original concern about Node.js not exposing `IsIconic` (minimized window state) was a limitation of the `get-windows` package, not Node.js itself. The `koffi` FFI library resolves this with direct Windows API calls.
 
-Window title classification (`"Page Title – Browser Name"`) provides sufficient signal for V1–V3 productive/unproductive classification without the complexity of UI Automation address bar scraping. Exact URL reading via `pywinauto` is deferred to V2+ as an optional enhancement.
+Edge URL reading uses a Python sidecar (`pywinauto`) running as a persistent subprocess. Window title alone was insufficient — it returns the page title, not the URL, making productive/unproductive classification ambiguous. The sidecar polls the Edge address bar via UI Automation every 10 seconds (with a 5s initial offset to sample at the midpoint of each Node.js poll interval) and emits JSON lines `{handle, url}` to Node.js via stdout.
 
 ---
 
@@ -80,7 +80,7 @@ Window title classification (`"Page Title – Browser Name"`) provides sufficien
 ## Consequences
 
 - Full app scaffold begins in Electron/Node.js/TypeScript/React
-- No Python code in the monitoring layer — `koffi` handles `IsIconic` natively in Node.js
+- `koffi` handles `IsIconic` natively in Node.js; Python sidecar (`pywinauto`) handles Edge URL reading via UI Automation
 - Design system and component library decisions (Tailwind, shadcn/ui, etc.) are made before V3 UI work begins
 - Monitoring performance is reviewed at end of V1 to assess whether Chromium overhead is user-facing; this is the trigger condition for a Tauri migration evaluation
 - V4 LLM architecture is planned in Node.js using the official Anthropic JS SDK

@@ -15,6 +15,7 @@
 #   Leave no visible Edge windows — should report "No visible Edge windows".
 
 import sys
+import json
 import time
 import ctypes
 from ctypes import wintypes
@@ -22,13 +23,14 @@ from ctypes import wintypes
 try:
     from pywinauto import Desktop
 except ImportError:
-    print("pywinauto not found. Install it with: pip install pywinauto")
+    sys.stderr.write("pywinauto not found. Install with: pip install pywinauto\n")
     sys.exit(1)
 
 # AutomationId of the address bar — run inspect-edge-tree.py if this stops working
 ADDRESS_BAR_AUTO_ID = 'view_1021'
 
 POLL_INTERVAL_S = 10
+INITIAL_DELAY_S = 5
 
 user32 = ctypes.windll.user32
 
@@ -45,45 +47,26 @@ def is_visible(hwnd):
     return root == hwnd
 
 
-def get_edge_urls():
+def poll():
     try:
         desktop = Desktop(backend='uia')
         edge_windows = [w for w in desktop.windows()
                         if 'microsoft' in w.window_text().lower()
                         and 'edge' in w.window_text().lower()
                         and is_visible(w.handle)]
-        if not edge_windows:
-            return []
-
-        urls = []
         for w in edge_windows:
             try:
                 win_spec = desktop.window(handle=w.handle)
                 address_bar = win_spec.child_window(auto_id=ADDRESS_BAR_AUTO_ID, control_type='Edit')
                 url = address_bar.get_value()
-                urls.append(url if url else "(empty — address bar found but no value returned)")
+                print(json.dumps({"handle": w.handle, "url": url or None}), flush=True)
             except Exception as e:
-                urls.append(f"Error ({type(e).__name__}): {e}")
-        return urls
-
+                print(json.dumps({"handle": w.handle, "url": None, "error": str(e)}), flush=True)
     except Exception as e:
-        return [f"Error ({type(e).__name__}): {e}"]
+        sys.stderr.write(f"poll error: {e}\n")
 
 
-print("=== Edge URL Reader — Proof of Concept ===")
-print(f"Polling every {POLL_INTERVAL_S} seconds.")
-print(f"Address bar AutomationId: \"{ADDRESS_BAR_AUTO_ID}\"")
-print("Navigate to different sites to verify. Press Ctrl+C to stop.\n")
-
+time.sleep(INITIAL_DELAY_S)
 while True:
-    timestamp = time.strftime('%H:%M:%S')
-    urls = get_edge_urls()
-    if not urls:
-        print(f"[{timestamp}] No visible Edge windows")
-    elif len(urls) == 1:
-        print(f"[{timestamp}] {urls[0]}")
-    else:
-        print(f"[{timestamp}] {len(urls)} visible Edge window(s):")
-        for i, url in enumerate(urls, 1):
-            print(f"  [{i}] {url}")
+    poll()
     time.sleep(POLL_INTERVAL_S)

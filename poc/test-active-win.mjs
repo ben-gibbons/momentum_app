@@ -15,11 +15,24 @@
 
 import { openWindows } from 'get-windows';
 import koffi from 'koffi';
+import { spawn } from 'child_process';
+import { createInterface } from 'readline';
 
 const user32 = koffi.load('user32.dll');
 const IsIconic = user32.func('bool IsIconic(void* hWnd)');
 
 const POLL_INTERVAL_MS = 10000;
+
+// Python sidecar: polls Edge address bar every 5s, emits JSON lines {handle, url}
+const edgeUrls = new Map();
+const pyProc = spawn('python', ['read-edge-url.py'], { cwd: new URL('.', import.meta.url).pathname.slice(1) });
+createInterface({ input: pyProc.stdout }).on('line', line => {
+  try {
+    const { handle, url } = JSON.parse(line);
+    if (handle != null) edgeUrls.set(handle, url);
+  } catch {}
+});
+pyProc.stderr.on('data', d => process.stderr.write(d));
 
 console.log('=== active-win Proof of Concept ===');
 console.log(`Polling every ${POLL_INTERVAL_MS / 1000} seconds.`);
@@ -45,13 +58,6 @@ function isEdge(w) {
   return w.owner.name === 'Microsoft Edge' || w.owner.path?.toLowerCase().includes('msedge');
 }
 
-// Edge titles follow "Page Title - Microsoft​Edge" where ​ is a zero-width space (U+200B).
-// \S* absorbs the zero-width space; greedy (.*) handles multiple " - " segments in the title.
-function edgePageTitle(w) {
-  const match = w.title.match(/^(.*)\s-\sMicrosoft\S*\sEdge$/i);
-  return match ? match[1] : null;
-}
-
 async function poll() {
   try {
     const timestamp = new Date().toLocaleTimeString();
@@ -70,8 +76,8 @@ async function poll() {
       console.log(`  Window   : ${w.title}`);
       console.log(`  PID      : ${w.owner.processId}`);
       if (isEdge(w)) {
-        const pageTitle = edgePageTitle(w);
-        console.log(`  --> Edge | Page: ${pageTitle ?? '(unknown)'}`);
+        const url = edgeUrls.get(w.id) ?? '(pending...)';
+        console.log(`  --> Edge | URL: ${url}`);
       }
       console.log('');
     }

@@ -29,7 +29,7 @@ Run `inspect-edge-tree.py` first to confirm `ADDRESS_BAR_AUTO_ID` (`view_1021` b
 ## Architecture Decisions (do not revisit without PM approval)
 
 - **Framework**: Electron (Node.js + TypeScript + React). Chosen because UI quality is a core retention mechanism for a distraction-prone user base — the full web design stack (Tailwind, Framer Motion, React component libraries, direct Figma handoff) is required to reach premium UI in V4+. Chromium performance overhead is the accepted trade-off; migrate to Tauri only if overhead proves a real user-facing problem, with the known caveat that Tauri uses WebKit on Mac (vs. Chromium on Windows), creating cross-platform rendering inconsistencies.
-- **Browser monitoring approach**: Window title classification via `get-windows` + `koffi` (for `IsIconic`). No Python sidecar in V1. Browser window titles follow a consistent "Page Title – Browser Name" pattern sufficient for productive/unproductive classification. Edge URL reading via `pywinauto` is deferred as an optional V2+ enhancement for edge-case disambiguation (e.g. YouTube Music vs. YouTube video).
+- **Browser monitoring approach**: Window enumeration via `get-windows` + `koffi` (`IsIconic`) for visibility, and a Python sidecar (`pywinauto`) for Edge URL reading. Window title alone was insufficient — it returns the page title, not the URL, making classification ambiguous. The Python sidecar runs as a persistent subprocess, polls the Edge address bar via UI Automation every 10s (with a 5s initial offset so it fires at the midpoint of each Node.js poll interval), and emits JSON lines `{handle, url}` to Node.js via stdout.
 - **Browser support**: Edge only in V1
 - **Polling interval**: 10 seconds (confirmed V1). Range 1–10s under evaluation; default starts at 10s and may be tuned based on feel. Tracking granularity is second-level — 10s polling captures micro-distractions (attention breaks under 30s) that matter for CBT intervention.
 - **No AI in the monitoring layer**: Algorithmic threshold rules only in V1
@@ -37,11 +37,17 @@ Run `inspect-edge-tree.py` first to confirm `ADDRESS_BAR_AUTO_ID` (`view_1021` b
 
 ## Key POC Implementation Details
 
-**Window detection**: Edge's window title contains a zero-width space (U+200B) between "Microsoft" and "Edge", so exact string matching fails. In `test-active-win.mjs`, `isEdge()` uses `includes('msedge')` on the exe path to avoid this. `edgePageTitle()` uses `\S*` in the regex to absorb the zero-width space: `/^(.*)\s-\sMicrosoft\S*\sEdge$/i`. In `read-edge-url.py` and `inspect-edge-tree.py`, filtering uses `'microsoft' in title.lower() and 'edge' in title.lower()`.
+**Window detection**: Edge's window title contains a zero-width space (U+200B) between "Microsoft" and "Edge", so exact string matching fails. In `test-active-win.mjs`, `isEdge()` uses `includes('msedge')` on the exe path to avoid this. In `read-edge-url.py` and `inspect-edge-tree.py`, filtering uses `'microsoft' in title.lower() and 'edge' in title.lower()`.
 
 **Visibility check**: A window is polled only if it is not minimized AND is the topmost window at its own center point. In `test-active-win.mjs`, minimized detection uses `koffi` + `IsIconic` (Win32) — `get-windows` returns restored bounds regardless of minimized state, so the `-32000` sentinel position approach is unreliable. Occlusion is detected via a pure-JS z-order bounds check (`isCovered`). In `read-edge-url.py`, the same checks are done via `ctypes` `IsIconic` and `WindowFromPoint` + `GetAncestor`.
 
 **Address bar lookup**: Located by `AutomationId` (`view_1021`), not by title — the title changes to the live URL. `UIAWrapper` objects from `desktop.windows()` don't support `child_window()`; convert to `WindowSpecification` first via `desktop.window(handle=w.handle)`.
+
+**`ADDRESS_BAR_AUTO_ID` resilience**: `view_1021` is hardcoded in `read-edge-url.py`. If Edge URL polling ever stops returning values after an Edge update, this is the first thing to check — run `inspect-edge-tree.py` to find the new AutomationId and update the constant. In the full Electron app, verify the address bar is reachable on startup and surface a clear error if not. **Open decision:** determine whether `inspect-edge-tree.py` logic should be bundled into the app as an auto-diagnostic that detects and recovers from AutomationId changes without requiring an app update.
+
+**`inspect-edge-tree.py`** is a dev-only diagnostic tool — not part of the app. Run it when `read-edge-url.py` stops working to identify the current address bar AutomationId. It is not a required step during normal setup.
+
+**Python sidecar polling**: `read-edge-url.py` uses a 5s initial delay then polls every 10s — one sample per Node.js poll window, timed at the midpoint. This avoids a race condition where Python and Node.js fire simultaneously and Node.js reads a stale value, while keeping CPU cost minimal (one `pywinauto` call per 10s window).
 
 ## SQLite Write Strategy
 
@@ -55,10 +61,10 @@ Do not write to SQLite on every poll. At 10s intervals that is ~2,880 writes per
 
 **Aggregation:** Roll up to minutes at **query time** (for trends views and popup thresholds), not at write time. This keeps raw session data intact for future analysis while keeping the write volume low regardless of polling cadence.
 
-## What Comes Next (after POC)
+## What Comes Next
 
 1. Scaffold the Electron app
-2. Background monitoring service: `get-windows` polling loop (10s) + `koffi` for `IsIconic` + window title classification. No Python sidecar.
+2. ~~Background monitoring service: `get-windows` polling loop (10s) + `koffi` for `IsIconic` + Python sidecar for Edge URL reading~~ **COMPLETE — validated in POC**
 3. Local data storage (SQLite — session-per-row schema; write on app-switch + 60–120s safety flush)
 4. Daily/Weekly Task UI
 5. "Feeling Distracted?" popup and Windows notification system

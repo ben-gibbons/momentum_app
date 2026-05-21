@@ -4,14 +4,15 @@ Two proof-of-concept tests to validate the core monitoring architecture before c
 
 ---
 
-## Test 1: Foreground App Detection (`active-win`)
+## Test 1: Foreground App Detection + Edge URL Reading
 
-**What it tests:** Whether Node.js can reliably detect which app is in focus on Windows every 10 seconds.
+**What it tests:** Whether Node.js can reliably detect which app is in focus on Windows every 10 seconds, and read the active Edge URL via a Python sidecar.
 
 **Setup:**
 ```
 cd poc
-npm install active-win
+npm install
+pip install pywinauto
 ```
 
 **Run:**
@@ -19,50 +20,34 @@ npm install active-win
 node test-active-win.mjs
 ```
 
+This spawns `read-edge-url.py` automatically as a subprocess. No need to run the Python script manually.
+
 **What to verify:**
 - Switch between Edge, Slack, File Explorer, Notepad — each should appear with the correct app name
-- Click the desktop — should handle gracefully (no crash)
+- Navigate to different sites in Edge — the URL should update each poll
+- Cover a window with another app — it should be excluded from the output
+- Minimise a window — it should be excluded from the output
 - Leave running for a few minutes — check for memory creep
-- Edge detection should log the `-->` handoff message
 
 ---
 
-## Test 2: Edge URL Reading (`pywinauto`)
+## Test 2: Edge UI Tree Inspection (`inspect-edge-tree.py`)
 
-Run these in order.
+A one-time diagnostic tool. Run this if Edge URL reading stops working after an Edge update — it scans the UI tree to find the current `AutomationId` of the address bar.
 
-**Setup:**
-```
-pip install pywinauto
-```
-
-### Step 1 — Inspect the UI tree
-
-Open Edge, navigate to any website, then run:
+**Run:**
 ```
 python inspect-edge-tree.py
 ```
 
-Look through the output for an `Edit` control whose title is the current URL. Note its `AutomationId` — if it differs from the default, update `ADDRESS_BAR_AUTO_ID` in `read-edge-url.py`.
-
-### Step 2 — Read the URL
-
-```
-python read-edge-url.py
-```
-
-**What to verify:**
-- Navigate to 3–4 different sites and confirm the URL updates each poll
-- Open a second Edge window on a different monitor — both URLs should be reported each poll
-- Cover an Edge window with another app — it should drop out of the output
-- Minimise all Edge windows — should report "No visible Edge windows", not crash
+Look for an `Edit` control whose value is the current URL. If its `AutomationId` differs from `view_1021`, update `ADDRESS_BAR_AUTO_ID` in `read-edge-url.py`.
 
 ---
 
 ## What passing looks like
 
 Both tests passing end-to-end means:
-1. `active-win` correctly identifies Edge as the foreground app
-2. `pywinauto` correctly reads URLs from all visible, unobscured Edge windows
+1. Node.js correctly identifies the foreground app and filters minimized/covered windows
+2. The Python sidecar correctly reads the active Edge URL every 10 seconds and passes it to Node.js
 
-That handoff — app detected → URL read triggered — is the core monitoring loop for Momentum V1.
+That handoff — app detected → URL read → classification triggered — is the core monitoring loop for Momentum V1.

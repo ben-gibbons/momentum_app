@@ -13,9 +13,9 @@ The original POC framing overstated Python's uniqueness for monitoring. Two assu
 
 1. **"Monitoring is only doable in Python"** — False. The actual limitation was that the `get-windows` npm package doesn't expose `IsIconic` (minimized window state). Node.js can call `IsIconic` directly via the `koffi` FFI library without any PowerShell roundtrip. Python does this more natively, but Node.js is fully capable.
 
-2. **"Edge URL reading via pywinauto is essential"** — Revisited. The `get-windows` package returns actual URLs on macOS. On Windows, browser window titles follow a consistent `"Page Title - Browser Name"` format, which provides sufficient signal for productive/unproductive classification in V1–V3. Exact URL reading covers edge cases (e.g. YouTube Music vs. YouTube video) that can be handled via title pattern rules or deferred to a later version. This removes the strongest argument for a Python sidecar in an otherwise Node.js architecture.
+2. **"Edge URL reading via pywinauto is essential"** — Confirmed. Window title alone returns the page title, not the URL, making classification ambiguous in practice. A Python sidecar (`pywinauto`) is included in V1: it runs as a persistent subprocess, polls the Edge address bar via UI Automation every 10 seconds (5s initial offset to sample at the midpoint of each Node.js poll), and emits JSON lines `{handle, url}` to Node.js via stdout.
 
-These corrections mean **all five frameworks are genuinely viable** and the decision should be made on actual trade-offs, not POC workarounds.
+The first correction means the monitoring layer is unblocked in Node.js. The second confirms the Python sidecar is required in V1. The decision should be made on actual trade-offs, not POC workarounds.
 
 ---
 
