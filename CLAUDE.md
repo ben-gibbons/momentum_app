@@ -63,4 +63,4 @@ Do not write to SQLite on every poll. At 10s intervals that is ~2,880 writes per
 
 ## Task Tracking
 
-All upcoming work items and next steps are tracked in `docs/to_do/Next Steps - Session Log.md`. Do not add "What Comes Next" lists to this file — keep CLAUDE.md focused on architecture, decisions, and implementation guidance.
+All upcoming work items and next steps are tracked in `docs/to_do/project_next_steps.md`. Personal tasks unrelated to the project are tracked in `docs/to_do/personal_tasks.md`. Do not add "What Comes Next" lists to this file — keep CLAUDE.md focused on architecture, decisions, and implementation guidance.
