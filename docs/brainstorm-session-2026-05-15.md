@@ -93,6 +93,32 @@ The core differentiator is treating procrastination as an **emotional regulation
 
 ---
 
+## V4 Feature Scope
+
+### LLM Integration
+- Claude API (or equivalent LLM) integrated into the response layer — not the monitoring layer
+- AI-assisted Procrastination Log: suggest reframes, thought challenges, and next actions based on what the user has written
+- AI-powered Risk Factor analysis: surface patterns across historical logs (e.g. "you procrastinate most on Mondays after low-sleep nights")
+- AI-powered to-do lists with task-to-step breakdown, following the "good-morning" command structure for next step suggestions and progress tracking.
+- Optional: AI-assisted task auto-population by reading inbox/calendar (trust prerequisite — opt-in only, clear data handling disclosure required)
+- Monitoring layer remains algorithmic — AI earns its place in the response/insight layer first
+
+### Premium UI Polish
+- Full Tailwind + Framer Motion + React component library treatment across all screens
+- Designed for direct Figma handoff; polished to a commercial standard
+- Consistent motion design, micro-interactions, and accessible color system
+
+### Windows Release & Quality
+- Full Windows release candidate preparation
+- Bug testing pass: regression testing across core monitoring loop, popup triggers, SQLite write/flush cycle, and Python sidecar edge cases
+- Security review: audit data storage (SQLite, local session files), IPC between Electron main/renderer, and Python sidecar stdout communication for injection risks
+- Address bar AutomationId resilience: auto-diagnostic that detects Edge UI changes and surfaces a recoverable error in-app without requiring an update
+- Performance audit: Chromium overhead baseline, Python sidecar CPU/memory, polling impact over an 8-hour session
+- Installer + auto-updater (Squirrel or similar)
+- Windows Store submission or direct distribution packaging
+
+---
+
 ## Key Decisions
 
 - Default startup goes directly to Daily Task view, not the dashboard
