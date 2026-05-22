@@ -1,8 +1,8 @@
 // test-active-win.mjs
-// Proof-of-concept: visible window detection across all monitors using active-win
+// Proof-of-concept: visible window detection across all monitors using get-windows + koffi
 //
 // Setup:
-//   npm install active-win
+//   npm install
 //
 // Run:
 //   node test-active-win.mjs
@@ -34,7 +34,7 @@ createInterface({ input: pyProc.stdout }).on('line', line => {
 });
 pyProc.stderr.on('data', d => process.stderr.write(d));
 
-console.log('=== active-win Proof of Concept ===');
+console.log('=== get-windows + koffi Proof of Concept ===');
 console.log(`Polling every ${POLL_INTERVAL_MS / 1000} seconds.`);
 console.log('Open apps across monitors, cover or minimise windows to verify filtering.');
 console.log('Press Ctrl+C to stop.\n');

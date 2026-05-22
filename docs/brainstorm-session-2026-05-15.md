@@ -1,6 +1,8 @@
 # Momentum — Brainstorming Session
 Date: 2026-05-15
 
+> **Historical snapshot.** This document records the original brainstorming session and has been lightly updated to reflect confirmed decisions. For current architecture and implementation guidance, see [`CLAUDE.md`](../CLAUDE.md). For the framework decision, see [`docs/adr-001-electron-framework.md`](adr-001-electron-framework.md).
+
 ---
 
 ## Problem Statement
@@ -34,11 +36,12 @@ The core differentiator is treating procrastination as an **emotional regulation
 - Strict Mode: unlisted apps/sites count as Unproductive (strict on) or Not-Sure (strict off).
 - Per-task overrides deferred to V2.
 
-### Data Tracking (polled every 15 seconds)
+### Data Tracking
 - **Productive**: User actively using an allowed app/site.
 - **Unproductive**: User actively using a disallowed app/site.
 - **Not-Sure**: App/site not on either list, OR on allowed list but no mouse/keyboard activity for 5 minutes.
 - Windows desktop/home screen not polled.
+- Polling interval: **10 seconds** (confirmed V1; range 1–10s under evaluation).
 
 ### "Feeling Distracted?" Popup
 - Triggers after 2 minutes of unproductive data OR 5 minutes of not-sure data (configurable in Settings).
@@ -96,7 +99,7 @@ The core differentiator is treating procrastination as an **emotional regulation
 ## V4 Feature Scope
 
 ### LLM Integration
-- Claude API (or equivalent LLM) integrated into the response layer — not the monitoring layer
+- Anthropic Claude API (official Anthropic JS SDK) integrated into the response layer — not the monitoring layer. Open-source LLM alternative (e.g. Ollama) to be evaluated as a local/offline option.
 - AI-assisted Procrastination Log: suggest reframes, thought challenges, and next actions based on what the user has written
 - AI-powered Risk Factor analysis: surface patterns across historical logs (e.g. "you procrastinate most on Mondays after low-sleep nights")
 - AI-powered to-do lists with task-to-step breakdown, following the "good-morning" command structure for next step suggestions and progress tracking.
