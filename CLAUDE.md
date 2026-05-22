@@ -61,11 +61,6 @@ Do not write to SQLite on every poll. At 10s intervals that is ~2,880 writes per
 
 **Aggregation:** Roll up to minutes at **query time** (for trends views and popup thresholds), not at write time. This keeps raw session data intact for future analysis while keeping the write volume low regardless of polling cadence.
 
-## What Comes Next
+## Task Tracking
 
-1. Scaffold the Electron app
-2. ~~Background monitoring service: `get-windows` polling loop (10s) + `koffi` for `IsIconic` + Python sidecar for Edge URL reading~~ **COMPLETE — validated in POC**
-3. Local data storage (SQLite — session-per-row schema; write on app-switch + 60–120s safety flush)
-4. Daily/Weekly Task UI
-5. "Feeling Distracted?" popup and Windows notification system
-6. Productivity Trends (7-day bar chart)
+All upcoming work items and next steps are tracked in `docs/to_do/Next Steps - Session Log.md`. Do not add "What Comes Next" lists to this file — keep CLAUDE.md focused on architecture, decisions, and implementation guidance.
