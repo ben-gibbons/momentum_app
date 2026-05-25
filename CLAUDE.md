@@ -66,3 +66,13 @@ Do not write to SQLite on every poll. At 10s intervals that is ~2,880 writes per
 ## Task Tracking
 
 All upcoming work items and next steps are tracked in `docs/to_do/project_next_steps.md`. Personal tasks unrelated to the project are tracked in `docs/to_do/personal_tasks.md`. Do not add "What Comes Next" lists to this file — keep CLAUDE.md focused on architecture, decisions, and implementation guidance.
+
+## Session Start
+
+At the start of every session, before doing anything else:
+
+1. Read `.claude/last-good-morning.txt`
+2. If the file doesn't exist, or the date inside it is not today's date, run `/good-morning` and then write today's date (YYYY-MM-DD) to `.claude/last-good-morning.txt`
+3. If today's date is already in the file, skip `/good-morning` and proceed normally
+
+This ensures `/good-morning` runs automatically on the first session of each day and is skipped on subsequent sessions.
