@@ -29,7 +29,8 @@ The core differentiator is treating procrastination as an **emotional regulation
 - **New day behavior**: Incomplete tasks from previous day auto-added. User can pull additional items from the weekly list or write in new ones.
 - **Task completion**: Strikethrough text + green checkmark replaces open circle. No animation.
 - **Optional per task**: Due dates and reminders.
-- Task breakdown mode (sub-steps) deferred to V2.
+- **Task categories**: Each task can be assigned a category — Work, Personal, Hobby, or Goal (attached to a goal entry). Required field in V1.
+- **Break Down Mode toggle**: Present in V1 (default on) as a Settings toggle. Full sub-step behavior (min 3 steps, >15-min prompt, time estimates) deferred to V2.
 
 ### Global App/Site Settings
 - Global allowed/disallowed apps and websites list.
@@ -39,9 +40,11 @@ The core differentiator is treating procrastination as an **emotional regulation
 ### Data Tracking
 - **Productive**: User actively using an allowed app/site.
 - **Unproductive**: User actively using a disallowed app/site.
-- **Not-Sure**: App/site not on either list, OR on allowed list but no mouse/keyboard activity for 5 minutes.
-- Windows desktop/home screen not polled.
+- **Not-Sure**: App/site not on either list (and Strict Mode is off). Windows desktop/home screen is not polled.
+- **Priority rule**: Unproductive always overrides Productive or Not-Sure. If multiple Edge windows are open simultaneously and any window is on a disallowed site, the session is recorded as Unproductive.
+- **Polling scope**: App polls continuously while the app is open — including when the Momentum window is behind another window or minimized. Polling stops only when the user exits the app entirely. There is no persistent system tray process.
 - Polling interval: **10 seconds** (confirmed V1; range 1–10s under evaluation).
+- Note: Tracking inactivity (no mouse/keyboard input on an allowed site → Not-Sure) is deferred to V4.
 
 ### "Feeling Distracted?" Popup
 - Triggers after 2 minutes of unproductive data OR 5 minutes of not-sure data (configurable in Settings).
@@ -53,10 +56,40 @@ The core differentiator is treating procrastination as an **emotional regulation
 - Selecting a risk factor auto-creates a Procrastination Log formatted as "Procrastination - DD/MM/YY hh:mm - lack of [risk factor]."
 - Auto-creates a recurring daily task for 2 weeks to address that risk factor.
 
+### Procrastination Logs Landing Page
+- Menu item accessible from the main nav.
+- Lists all saved Procrastination Logs sorted by date, labelled `Procrastination - DD/MM/YY hh:mm` (or `Procrastination - DD/MM/YY hh:mm - lack of [risk factor]` for Risk Factor logs).
+- User can manually create a new log from this page.
+- Tapping a log opens the full completed log for review.
+
 ### Procrastination Log
-- CBT Thought Record flow. Exact UI TBD (screenshots pending).
-- Includes a "Start a 10 minute timer" option.
 - Most important screen in the app — must feel supportive, not like a form.
+- **UI rule**: Steps are displayed one at a time to avoid overwhelming the user. The user progresses forward through each step sequentially.
+- Opening quote: *"Procrastination isn't a time management problem, it's an emotional regulation problem."*
+- Closing quote: *"The dread is always worse than the actual doing of the task."*
+- Completed logs are saved to the Procrastination Logs landing page with their timestamp.
+
+**Flow (5 steps):**
+
+1. **Date / Time / Task** — User types the task they are avoiding. (V2: auto-populate from the current active daily task.)
+2. **Name the emotion** — Free-text field. Prompt examples: overwhelmed, anxious, fear of quality, etc.
+3. **Thought Record:**
+   - *Tempting Thought* — what the user wants to do instead, and *% Belief Before* (0–100%) how much they believe it's a good idea.
+   - *Distortion* — user selects from the Burns cognitive distortions list:
+     1. All-or-nothing thinking
+     2. Overgeneralization
+     3. Mental filter
+     4. Disqualifying the positive
+     5. Jumping to conclusions (mind reading / fortune telling)
+     6. Magnification or minimization
+     7. Emotional reasoning
+     8. Should statements
+     9. Labeling and mislabeling
+     10. Personalization
+   - *Self-Control Thought* — a reframe of the tempting thought, and *% Belief* (0–100%) in that reframe.
+   - *% Belief After* — how much the user still believes the original tempting thought after completing the reframe. Filled in immediately after the Self-Control Thought, within the same session.
+4. **Task Breakdown** — First 1–3 easiest steps (~10 mins each). For each step: Predicted Difficulty % and Time, Predicted Satisfaction %. A **"Start 10-minute timer"** button is available here. The timer fires a Windows notification when it ends. The log stays open in the app until the user explicitly closes it. After completing their work, the user returns to the log to fill in Actual Difficulty % and Actual Satisfaction % for each step, then closes the log.
+5. **Takeaways** — Optional free-text field.
 
 ### Productivity Trends
 - 7-day bar chart (current week).
@@ -71,19 +104,20 @@ The core differentiator is treating procrastination as an **emotional regulation
 
 ### Settings (Minimal)
 - Configurable distraction popup thresholds (default: 2 min unproductive, 5 min not-sure).
-- Break Down Mode toggle (default on; behavior deferred to V2, toggle present in V1).
+- Break Down Mode toggle (default on). Toggle is functional in V1 UI; full sub-step behavior activates in V2.
 
 ---
 
 ## V2 Feature Scope
 
 - Per-task allowed/disallowed app/site overrides
-- Task breakdown mode (sub-steps, min 3, prompt to subdivide steps >15 minutes)
+- Task breakdown mode (sub-steps, min 3, prompt to subdivide steps >15 minutes, time estimate per step)
 - Countdown timer (user-specified minutes)
 - Pomodoro timer (25/5, 50/10, or custom; only increments on productive data; break doubles every 2 consecutive Pomodoros)
 - Journal (thought records, strong emotions entries, gratitude logs)
 - Calendar view (daily/weekly, task history and upcoming)
-- Break notifier Pomodoro integration
+- Break notifier Pomodoro integration (Pomodoro break replaces standard 50-min break notifier when Pomodoro is active)
+- Procrastination Log: auto-populate Task field from current active daily task
 
 ---
 
@@ -128,8 +162,13 @@ The core differentiator is treating procrastination as an **emotional regulation
 - Dashboard available as optional view only
 - Global allowed/disallowed in V1; per-task overrides in V2
 - No task completion animation — strikethrough + checkmark only
-- Procrastination Log UX design pending (screenshots from user)
 - Risk Factors auto-recurring task creation: in spec but flagged for potential revision in V2
+- **Unproductive data always wins**: if any monitored window is on a disallowed site/app at poll time, the interval is recorded as Unproductive regardless of other open windows
+- **Monitoring lifecycle**: polling runs whenever the Momentum app is open (including minimized or behind other windows). Polling stops on app exit. No persistent background tray process.
+- **Task categories in V1**: Work, Personal, Hobby, Goal (required field per task)
+- **Break Down Mode V1**: toggle-only; sub-step behavior activates in V2
+- **Not-Sure in V1**: applies only to unlisted apps/sites. Inactivity detection on allowed sites (→ Not-Sure) deferred to V4.
+- **Procrastination Log cognitive distortions list**: Burns list (10 distortions). See Procrastination Log section for full list.
 
 ---
 
@@ -141,3 +180,5 @@ The core differentiator is treating procrastination as an **emotional regulation
 - **Browser extension**: Avoided for onboarding friction. UIAutomation (pywinauto) used for Edge URL reading instead. Acknowledged as fragile — revisit as optional enhancement later.
 - **Cross-browser support**: Edge only in V1.
 - **Phone app**: Future iteration.
+- **Not-Sure inactivity tracking**: Detecting mouse/keyboard inactivity on an allowed site (→ flip to Not-Sure) deferred to V4. V1 Not-Sure applies only to unlisted apps/sites.
+- **Procrastination Log task auto-population**: Auto-filling the Task field from the current active daily task deferred to V2. V1 is manual entry.

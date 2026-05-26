@@ -34,6 +34,9 @@ Run `inspect-edge-tree.py` first to confirm `ADDRESS_BAR_AUTO_ID` (`view_1021` b
 - **Browser monitoring approach**: Window enumeration via `get-windows` + `koffi` (`IsIconic`) for visibility, and a Python sidecar (`pywinauto`) for Edge URL reading. Window title alone was insufficient — it returns the page title, not the URL, making classification ambiguous. The Python sidecar runs as a persistent subprocess, polls the Edge address bar via UI Automation every 10s (with a 5s initial offset so it fires at the midpoint of each Node.js poll interval), and emits JSON lines `{handle, url}` to Node.js via stdout.
 - **Browser support**: Edge only in V1
 - **Polling interval**: 10 seconds (confirmed V1). Range 1–10s under evaluation; default starts at 10s and may be tuned based on feel. Tracking granularity is second-level — 10s polling captures micro-distractions (attention breaks under 30s) that matter for CBT intervention.
+- **Classification priority**: Unproductive always overrides Productive or Not-Sure. If multiple Edge windows are open and any is on a disallowed site, the poll interval is recorded as Unproductive.
+- **Monitoring lifecycle**: The monitoring loop runs whenever the Momentum app process is open — including when the window is minimized or behind other windows. Polling stops only when the user exits the app. There is no persistent system tray process; exit = stop.
+- **Not-Sure scope (V1)**: Not-Sure applies only to apps/sites not on either the allowed or disallowed list (with Strict Mode off). Inactivity-based Not-Sure (no mouse/keyboard input on an allowed site → flip to Not-Sure) is deferred to V4 — do not implement in V1–V3.
 - **No AI in the monitoring layer**: Algorithmic threshold rules only in V1
 - **No website hard-blocking in V1**
 
@@ -59,9 +62,94 @@ Do not write to SQLite on every poll. At 10s intervals that is ~2,880 writes per
 - Maintain an in-memory session object: `{ app, start_time, accumulated_seconds }`
 - Write to SQLite on **app-switch**: close the outgoing session row, open a new one
 - **Periodic safety flush** every 60–120 seconds to protect against crashes (upsert the open session row)
-- Schema: one row per contiguous session — `(app, start_time, end_time, total_seconds)` — not one row per poll
+- Schema: one row per contiguous session — not one row per poll
 
 **Aggregation:** Roll up to minutes at **query time** (for trends views and popup thresholds), not at write time. This keeps raw session data intact for future analysis while keeping the write volume low regardless of polling cadence.
+
+## Database Schema
+
+All timestamps are stored as **Unix seconds (INTEGER)**. SQLite's date functions use seconds by default, and Momentum's precision needs (sessions in seconds, 10s polling) do not require milliseconds. In Node.js, use `Math.floor(Date.now() / 1000)` when writing timestamps.
+
+### `sessions` — monitoring data
+```sql
+CREATE TABLE sessions (
+  id             INTEGER PRIMARY KEY,
+  app            TEXT    NOT NULL,
+  url            TEXT,                -- NULL for non-Edge apps
+  classification INTEGER NOT NULL CHECK (classification IN (1, 2, 3)),
+                                      -- 1 = productive, 2 = unproductive, 3 = not_sure
+  start_time     INTEGER NOT NULL,    -- Unix seconds
+  end_time       INTEGER,             -- NULL while session is open
+  total_seconds  INTEGER              -- written on close or safety flush
+);
+```
+
+### `tasks` — weekly and daily tasks
+```sql
+CREATE TABLE tasks (
+  id             INTEGER PRIMARY KEY,
+  type           TEXT    NOT NULL CHECK (type IN ('weekly', 'daily')),
+  week_start     INTEGER,             -- Unix seconds for Monday of that week (weekly tasks)
+  date           INTEGER,             -- Unix seconds for the day (daily tasks)
+  parent_task_id INTEGER REFERENCES tasks(id), -- daily task → weekly task
+  title          TEXT    NOT NULL,
+  category       TEXT    CHECK (category IN ('work', 'personal', 'hobby', 'goal')),
+  due_date       INTEGER,
+  reminder_time  INTEGER,
+  completed      INTEGER NOT NULL DEFAULT 0,   -- 0 or 1; source of truth lives on the weekly task row
+  completed_at   INTEGER
+);
+```
+
+**Sync rule:** Completion status is stored only on the weekly task row. Daily task rows reference weekly tasks via `parent_task_id`. When a task is marked complete on either the daily or weekly view, write `completed = 1` to the weekly task row. Both views join on the weekly task to read completion state — one source of truth, no manual syncing required.
+
+### `procrastination_logs` — CBT thought records
+```sql
+CREATE TABLE procrastination_logs (
+  id                   INTEGER PRIMARY KEY,
+  created_at           INTEGER NOT NULL,  -- Unix seconds
+  label                TEXT    NOT NULL,  -- display name, e.g. "Procrastination - DD/MM/YY hh:mm"
+  source               TEXT    CHECK (source IN ('manual', 'popup', 'risk_factor')),
+  task_text            TEXT,
+  emotion              TEXT,
+  tempting_thought     TEXT,
+  belief_before        INTEGER,           -- 0–100
+  distortion           TEXT,              -- Burns list item
+  self_control_thought TEXT,
+  belief_self_control  INTEGER,           -- 0–100
+  belief_after         INTEGER,           -- 0–100
+  takeaways            TEXT,
+  risk_factor          TEXT               -- NULL unless source = 'risk_factor'
+);
+```
+
+### `log_steps` — task breakdown steps (1–3 per log)
+```sql
+CREATE TABLE log_steps (
+  id                    INTEGER PRIMARY KEY,
+  log_id                INTEGER NOT NULL REFERENCES procrastination_logs(id),
+  step_number           INTEGER NOT NULL,  -- 1, 2, or 3
+  description           TEXT,
+  predicted_difficulty  INTEGER,           -- 0–100
+  predicted_time_mins   INTEGER,
+  predicted_satisfaction INTEGER,          -- 0–100
+  actual_difficulty     INTEGER,           -- filled on return after work
+  actual_time_mins      INTEGER,
+  actual_satisfaction   INTEGER            -- 0–100
+);
+```
+
+### `risk_factors` — recurring daily tasks auto-created from Risk Factors page
+```sql
+CREATE TABLE risk_factors (
+  id          INTEGER PRIMARY KEY,
+  factor      TEXT    NOT NULL,
+  created_at  INTEGER NOT NULL,  -- Unix seconds
+  recur_until INTEGER NOT NULL   -- Unix seconds; 14 days from created_at
+);
+```
+
+Each morning the app checks `risk_factors` for rows where `recur_until >= today` and generates that day's task row in the `tasks` table if one doesn't already exist.
 
 ## Task Tracking
 
