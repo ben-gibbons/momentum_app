@@ -136,7 +136,8 @@ The core differentiator is treating procrastination as an **emotional regulation
 - Anthropic Claude API (official Anthropic JS SDK) integrated into the response layer — not the monitoring layer. Open-source LLM alternative (e.g. Ollama) to be evaluated as a local/offline option.
 - AI-assisted Procrastination Log: suggest reframes, thought challenges, and next actions based on what the user has written
 - AI-powered Risk Factor analysis: surface patterns across historical logs (e.g. "you procrastinate most on Mondays after low-sleep nights")
-- AI-powered to-do lists with task-to-step breakdown, following the "good-morning" command structure for next step suggestions and progress tracking.
+- AI-powered task breakdown: when Break Down Mode is active, the Claude JS SDK generates and surfaces steps using the same UX pattern as the `/good-morning` Claude Code command — easiest-first ordering, one step revealed at a time, ~20 min per step, no full list shown upfront to avoid overwhelm.
+- AI-powered daily/weekly task review: end-of-day task tracking should loosely follow the `/lets-go-home` Claude Code command — surfacing what's completed, suggesting next steps, and advancing the task lists with minimal friction.
 - Optional: AI-assisted task auto-population by reading inbox/calendar (trust prerequisite — opt-in only, clear data handling disclosure required)
 - Monitoring layer remains algorithmic — AI earns its place in the response/insight layer first
 
