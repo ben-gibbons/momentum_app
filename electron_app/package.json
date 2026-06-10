@@ -1,10 +1,10 @@
 {
   "name": "momentum_app",
   "version": "1.0.0",
-  "description": "An Electron application with React and TypeScript",
+  "description": "Momentum Windows App: a productivity and distraction monitoring app with CBT-based interventions",
   "main": "./out/main/index.js",
-  "author": "example.com",
-  "homepage": "https://electron-vite.org",
+  "author": "Ben Gibbons",
+  "homepage": "",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
