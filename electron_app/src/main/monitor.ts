@@ -30,7 +30,7 @@ function isEdge(w: WindowInfo): boolean {
 async function poll(): Promise<void> {
   try {
     const all = await openWindows()
-    const visible = all.filter((w, i) => !IsIconic(w.id) && !isCovered(w, all, i))
+    const visible = all.filter((w, i) => w.bounds.width > 0 && w.bounds.height > 0 && !IsIconic(w.id) && !isCovered(w, all, i))
 
     if (visible.length === 0) {
       console.log('[monitor] No visible windows')
