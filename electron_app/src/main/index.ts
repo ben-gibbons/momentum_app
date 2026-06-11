@@ -1,10 +1,9 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { readWindow } from './read_window'
+import { onPoll, startSessionManager, stopSessionManager } from './session-manager'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-
-let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -19,8 +18,6 @@ function createWindow(): void {
       contextIsolation: true
     }
   })
-
-  mainWindow = win
 
   win.on('ready-to-show', () => {
     win.show()
@@ -48,15 +45,16 @@ app.whenReady().then(() => {
   ipcMain.on('ping', () => console.log('pong'))
 
   createWindow()
-  readWindow((data) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('monitor:data', data)
-    }
-  })
+  startSessionManager()
+  readWindow(onPoll)
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+app.on('before-quit', () => {
+  stopSessionManager()
 })
 
 app.on('window-all-closed', () => {
