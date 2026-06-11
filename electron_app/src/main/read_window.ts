@@ -17,6 +17,11 @@ const POLL_INTERVAL_MS = 10000
 
 type WindowInfo = Awaited<ReturnType<typeof openWindows>>[number]
 
+export interface MonitorData {
+  app: string
+  url?: string
+}
+
 const edgeUrls = new Map<number, string>()
 
 function isCovered(w: WindowInfo, allWindows: WindowInfo[], index: number): boolean {
@@ -56,7 +61,7 @@ function readUrl(): void {
   })
 }
 
-async function poll(): Promise<void> {
+async function poll(onPoll: (data: MonitorData[]) => void): Promise<void> {
   try {
     const all = await openWindows()
     const visible = all.filter((w, i) =>
@@ -67,22 +72,24 @@ async function poll(): Promise<void> {
 
     if (visible.length === 0) {
       console.log('[read_window] No visible windows')
+      onPoll([])
       return
     }
 
-    for (const w of visible) {
-      const info = isEdge(w)
-        ? `${w.owner.name} | URL: ${edgeUrls.get(w.id) ?? '(pending...)'}`
-        : w.owner.name
-      console.log(`[read_window] ${info}`)
-    }
+    const data: MonitorData[] = visible.map((w) => ({
+      app: w.owner.name,
+      ...(isEdge(w) ? { url: edgeUrls.get(w.id) } : {})
+    }))
+
+    data.forEach((d) => console.log(`[read_window] ${d.app}${d.url ? ` | URL: ${d.url}` : ''}`))
+    onPoll(data)
   } catch (err) {
     console.error('[read_window] Error:', (err as Error).message)
   }
 }
 
-export function readWindow(): void {
+export function readWindow(onPoll: (data: MonitorData[]) => void): void {
   readUrl()
-  poll()
-  setInterval(poll, POLL_INTERVAL_MS)
+  poll(onPoll)
+  setInterval(() => poll(onPoll), POLL_INTERVAL_MS)
 }
