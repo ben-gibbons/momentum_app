@@ -1,6 +1,5 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
-import { startMonitoring } from './monitor'
-import { startSidecar } from './sidecar'
+import { readWindow } from './read_window'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -54,8 +53,7 @@ app.whenReady().then(() => {
   ipcMain.on('ping', () => console.log('pong'))
 
   createWindow()
-  startSidecar()
-  startMonitoring()
+  readWindow()
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the

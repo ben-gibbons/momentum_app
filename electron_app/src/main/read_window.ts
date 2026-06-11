@@ -1,5 +1,9 @@
 import { openWindows } from 'get-windows'
 import koffi from 'koffi'
+import { spawn } from 'child_process'
+import { createInterface } from 'readline'
+import { join } from 'path'
+import { app } from 'electron'
 
 const user32 = koffi.load('user32.dll')
 const IsIconic = user32.func('bool IsIconic(void* hWnd)')
@@ -8,8 +12,7 @@ const POLL_INTERVAL_MS = 10000
 
 type WindowInfo = Awaited<ReturnType<typeof openWindows>>[number]
 
-// Populated by the Python sidecar (wired in next step)
-export const edgeUrls = new Map<number, string>()
+const edgeUrls = new Map<number, string>()
 
 function isCovered(w: WindowInfo, allWindows: WindowInfo[], index: number): boolean {
   const cx = w.bounds.x + w.bounds.width / 2
@@ -27,13 +30,32 @@ function isEdge(w: WindowInfo): boolean {
   return w.owner.name === 'Microsoft Edge' || w.owner.path?.toLowerCase().includes('msedge') === true
 }
 
+// Python Sidecar
+function readUrl(): void {
+  const scriptPath = join(app.getAppPath(), 'src', 'main', 'read-edge-url.py')
+  const pyProc = spawn('python', [scriptPath])
+
+  createInterface({ input: pyProc.stdout }).on('line', (line) => {
+    try {
+      const { handle, url } = JSON.parse(line)
+      if (handle != null) edgeUrls.set(handle, url)
+    } catch {}
+  })
+
+  pyProc.stderr.on('data', (d) => process.stderr.write(d))
+
+  pyProc.on('exit', (code) => {
+    console.error(`[read_window] Python sidecar exited with code ${code}`)
+  })
+}
+
 async function poll(): Promise<void> {
   try {
     const all = await openWindows()
     const visible = all.filter((w, i) => w.bounds.width > 0 && w.bounds.height > 0 && !IsIconic(w.id) && !isCovered(w, all, i))
 
     if (visible.length === 0) {
-      console.log('[monitor] No visible windows')
+      console.log('[read_window] No visible windows')
       return
     }
 
@@ -41,14 +63,15 @@ async function poll(): Promise<void> {
       const info = isEdge(w)
         ? `${w.owner.name} | URL: ${edgeUrls.get(w.id) ?? '(pending...)'}`
         : w.owner.name
-      console.log(`[monitor] ${info}`)
+      console.log(`[read_window] ${info}`)
     }
   } catch (err) {
-    console.error('[monitor] Error:', (err as Error).message)
+    console.error('[read_window] Error:', (err as Error).message)
   }
 }
 
-export function startMonitoring(): void {
+export function readWindow(): void {
+  readUrl()
   poll()
   setInterval(poll, POLL_INTERVAL_MS)
 }
