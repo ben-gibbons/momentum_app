@@ -8,7 +8,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 For the full problem statement, core concept, and V1–V4 feature scope, see [`docs/brainstorm-session-2026-05-15.md`](docs/brainstorm-session-2026-05-15.md). For the framework architecture decision (Electron), see [`docs/adr-001-electron-framework.md`](docs/adr-001-electron-framework.md).
 
-The repo is currently in **build phase**. Both POC tests have passed. The Electron app scaffold is the next step.
+The repo is currently in **build phase**. Both POC tests have passed. The Electron app scaffold is complete. Next step: local data storage (SQLite).
+
+## Electron App Structure
+
+The Electron app lives in `electron_app/`. Key source files in `src/main/`:
+
+- **`index.ts`** — main process entry point. Creates the window, starts the monitoring loop.
+- **`read_window.ts`** — polls visible windows every 10s using `get-windows` + `koffi` (`IsIconic`). Also spawns the Python sidecar and owns the `edgeUrls` map. Exports `readWindow(onPoll)`.
+- **`read-edge-url.py`** — Python sidecar spawned by `read_window.ts`. Reads the Edge address bar via UI Automation, emits `{handle, url}` JSON lines to stdout. Copied from `poc/` — the original is retained there for reference.
+
+The renderer (`src/renderer/src/`) uses React + Tailwind CSS v4 (via `@tailwindcss/vite`). IPC from main to renderer goes through `src/preload/index.ts` via contextBridge.
 
 ## Running the POC
 
@@ -53,6 +63,14 @@ Run `inspect-edge-tree.py` first to confirm `ADDRESS_BAR_AUTO_ID` (`view_1021` b
 **`inspect-edge-tree.py`** is a dev-only diagnostic tool — not part of the app. Run it when `read-edge-url.py` stops working to identify the current address bar AutomationId. It is not a required step during normal setup.
 
 **Python sidecar polling**: `read-edge-url.py` uses a 5s initial delay then polls every 10s — one sample per Node.js poll window, timed at the midpoint. This avoids a race condition where Python and Node.js fire simultaneously and Node.js reads a stale value, while keeping CPU cost minimal (one `pywinauto` call per 10s window).
+
+## Key Electron App Implementation Details
+
+**Monitoring implementation**: `read_window.ts` + `read-edge-url.py` sidecar is a direct port of the POC (`test-active-win.mjs` + `poc/read-edge-url.py`). The logic is identical — adapted to TypeScript with types added.
+
+**Zero-bounds shell window filter**: `openWindows()` returns Windows shell windows (desktop background, taskbar) with `bounds: {width: 0, height: 0}`. These are not minimized so `IsIconic` doesn't catch them. Filter them out with `w.bounds.width > 0 && w.bounds.height > 0` before the `IsIconic` check in `read_window.ts`.
+
+**Native module rebuild**: `get-windows` is a native module that must be rebuilt for Electron's Node.js ABI using `npx @electron/rebuild` from `electron_app/`. Requires Visual Studio Build Tools with the "Desktop development with C++" workload installed. Re-run after any Electron version upgrade. `koffi` uses N-API and does not need rebuilding.
 
 ## SQLite Write Strategy
 
