@@ -8,15 +8,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 For the full problem statement, core concept, and V1–V4 feature scope, see [`docs/brainstorm-session-2026-05-15.md`](docs/brainstorm-session-2026-05-15.md). For the framework architecture decision (Electron), see [`docs/adr-001-electron-framework.md`](docs/adr-001-electron-framework.md).
 
-The repo is currently in **build phase**. Both POC tests have passed. The Electron app scaffold is complete. Next step: local data storage (SQLite).
+The repo is currently in **build phase**. Both POC tests have passed. The Electron app scaffold is complete. SQLite storage is wired up. Next step: Daily/Weekly Task UI.
 
 ## Electron App Structure
 
 The Electron app lives in `electron_app/`. Key source files in `src/main/`:
 
-- **`index.ts`** — main process entry point. Creates the window, starts the monitoring loop.
+- **`index.ts`** — main process entry point. Creates the window, starts the monitoring loop, starts/stops the session manager.
 - **`read_window.ts`** — polls visible windows every 10s using `get-windows` + `koffi` (`IsIconic`). Also spawns the Python sidecar and owns the `edgeUrls` map. Exports `readWindow(onPoll)`.
 - **`read-edge-url.py`** — Python sidecar spawned by `read_window.ts`. Reads the Edge address bar via UI Automation, emits `{handle, url}` JSON lines to stdout. Copied from `poc/` — the original is retained there for reference.
+- **`db.ts`** — opens the SQLite DB (lazy singleton), creates tables on first launch. All DB access goes through `getDb()`.
+- **`session-manager.ts`** — translates the poll stream into SQLite session rows. Detects app-switches, writes rows, runs a 60s safety flush.
 
 The renderer (`src/renderer/src/`) uses React + Tailwind CSS v4 (via `@tailwindcss/vite`). IPC from main to renderer goes through `src/preload/index.ts` via contextBridge.
 
@@ -70,7 +72,9 @@ Run `inspect-edge-tree.py` first to confirm `ADDRESS_BAR_AUTO_ID` (`view_1021` b
 
 **Zero-bounds shell window filter**: `openWindows()` returns Windows shell windows (desktop background, taskbar) with `bounds: {width: 0, height: 0}`. These are not minimized so `IsIconic` doesn't catch them. Filter them out with `w.bounds.width > 0 && w.bounds.height > 0` before the `IsIconic` check in `read_window.ts`.
 
-**Native module rebuild**: `get-windows` is a native module that must be rebuilt for Electron's Node.js ABI using `npx @electron/rebuild` from `electron_app/`. Requires Visual Studio Build Tools with the "Desktop development with C++" workload installed. Re-run after any Electron version upgrade. `koffi` uses N-API and does not need rebuilding.
+**tsconfig.web.json**: The scaffold template shipped with `"baseUrl": "."` which is deprecated in TypeScript 5.0+. This has been removed — `paths` entries use explicit `./` prefixes instead (`"@renderer/*": ["./src/renderer/src/*"]`). Do not re-add `baseUrl`.
+
+**Native module rebuild**: `get-windows` and `better-sqlite3` are native modules that must be rebuilt for Electron's Node.js ABI using `npx @electron/rebuild` from `electron_app/`. Requires Visual Studio Build Tools with the "Desktop development with C++" workload installed. Re-run after any Electron version upgrade. `koffi` uses N-API and does not need rebuilding.
 
 ## SQLite Write Strategy
 

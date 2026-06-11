@@ -24,7 +24,7 @@ The database lives in Electron's `userData` directory:
 
 ## Configuration
 
-**WAL mode** (`PRAGMA journal_mode = WAL`) is enabled on init:
+**WAL (Write-Ahead Logging) mode** (`PRAGMA journal_mode = WAL`) is enabled on init:
 - Reads don't block writes
 - More crash-resilient than the default rollback journal
 - Better fit for a desktop app with a persistent background polling loop

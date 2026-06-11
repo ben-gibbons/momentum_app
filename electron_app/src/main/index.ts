@@ -1,3 +1,7 @@
+// index.ts
+// Main process entry point. Creates the BrowserWindow, starts the monitoring loop
+// (readWindow), and starts the session manager (SQLite writes). Stops the session
+// manager cleanly on before-quit so the open session row is closed before exit.
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { readWindow } from './read_window'
 import { onPoll, startSessionManager, stopSessionManager } from './session-manager'
