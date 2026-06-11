@@ -1,3 +1,8 @@
+// read_window.ts
+// Polls visible windows every 10s using get-windows + koffi (IsIconic).
+// Spawns the Python sidecar (read-edge-url.py) which reads the Edge address bar
+// and writes URLs into the shared edgeUrls map for classification.
+
 import { openWindows } from 'get-windows'
 import koffi from 'koffi'
 import { spawn } from 'child_process'
@@ -15,6 +20,8 @@ type WindowInfo = Awaited<ReturnType<typeof openWindows>>[number]
 const edgeUrls = new Map<number, string>()
 
 function isCovered(w: WindowInfo, allWindows: WindowInfo[], index: number): boolean {
+  // A window is covered if any higher z-order window's bounds contain its center point.
+  // openWindows() returns windows front-to-back, so lower index = higher z-order.
   const cx = w.bounds.x + w.bounds.width / 2
   const cy = w.bounds.y + w.bounds.height / 2
   for (let i = 0; i < index; i++) {
@@ -52,7 +59,11 @@ function readUrl(): void {
 async function poll(): Promise<void> {
   try {
     const all = await openWindows()
-    const visible = all.filter((w, i) => w.bounds.width > 0 && w.bounds.height > 0 && !IsIconic(w.id) && !isCovered(w, all, i))
+    const visible = all.filter((w, i) =>
+      w.bounds.width > 0 && w.bounds.height > 0 // exclude zero-bounds shell windows (desktop, taskbar)
+      && !IsIconic(w.id)
+      && !isCovered(w, all, i)
+    )
 
     if (visible.length === 0) {
       console.log('[read_window] No visible windows')

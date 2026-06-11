@@ -1,18 +1,12 @@
 # read-edge-url.py
-# Step 2 of 2: Read the active URL from Microsoft Edge every 10 seconds.
-# Run inspect-edge-tree.py first to confirm ADDRESS_BAR_AUTO_ID on your machine.
+# Python sidecar spawned by read_window.ts.
+# Polls visible Edge windows every 10s and emits JSON lines {handle, url} to stdout.
+# Spawned once on app start; runs for the lifetime of the app.
 #
-# Setup:
-#   pip install pywinauto
+# If Edge URL polling stops working after an Edge update, ADDRESS_BAR_AUTO_ID may have
+# changed — run poc/inspect-edge-tree.py to find the new value and update the constant below.
 #
-# Run:
-#   python read-edge-url.py
-#
-# What to test:
-#   Navigate to different websites across multiple Edge windows and verify all URLs are reported.
-#   Cover an Edge window with another app — it should be excluded from the output.
-#   Minimise an Edge window — it should be excluded from the output.
-#   Leave no visible Edge windows — should report "No visible Edge windows".
+# Requires: pip install pywinauto
 
 import sys
 import json
@@ -26,10 +20,12 @@ except ImportError:
     sys.stderr.write("pywinauto not found. Install with: pip install pywinauto\n")
     sys.exit(1)
 
-# AutomationId of the address bar — run inspect-edge-tree.py if this stops working
+# AutomationId of the Edge address bar — fragile to Edge updates, see header note above
 ADDRESS_BAR_AUTO_ID = 'view_1021'
 
 POLL_INTERVAL_S = 10
+# 5s offset so this fires at the midpoint of each Node.js 10s poll window,
+# avoiding a race where both processes sample simultaneously and Node.js reads a stale URL
 INITIAL_DELAY_S = 5
 
 user32 = ctypes.windll.user32
@@ -43,7 +39,7 @@ def is_visible(hwnd):
     center_x = (rect.left + rect.right) // 2
     center_y = (rect.top + rect.bottom) // 2
     top_hwnd = user32.WindowFromPoint(wintypes.POINT(center_x, center_y))
-    root = user32.GetAncestor(top_hwnd, 2)  # GA_ROOT
+    root = user32.GetAncestor(top_hwnd, 2)  # GA_ROOT = 2
     return root == hwnd
 
 
@@ -56,6 +52,8 @@ def poll():
                         and is_visible(w.handle)]
         for w in edge_windows:
             try:
+                # desktop.windows() returns UIAWrapper objects which don't support child_window()
+                # directly — must convert to WindowSpecification via desktop.window(handle=...)
                 win_spec = desktop.window(handle=w.handle)
                 address_bar = win_spec.child_window(auto_id=ADDRESS_BAR_AUTO_ID, control_type='Edit')
                 url = address_bar.get_value()
