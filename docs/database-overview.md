@@ -25,33 +25,43 @@ The database lives in Electron's `userData` directory:
 ## Configuration
 
 **WAL (Write-Ahead Logging) mode** (`PRAGMA journal_mode = WAL`) is enabled on init:
-- Reads don't block writes
-- More crash-resilient than the default rollback journal
-- Better fit for a desktop app with a persistent background polling loop
+- Reads don't block writes — instead of locking the whole database file during a write, WAL appends changes to a separate log file, so reads can continue against the last committed state uninterrupted
+- More crash-resilient than the default rollback journal — SQLite's default mode modifies the database file in place and keeps a temporary backup; WAL writes to the log first, so the main file is never partially modified
+- Better fit for a desktop app with a persistent background polling loop — the monitoring loop and the UI are always running concurrently; WAL is designed for this kind of mixed read/write workload
+- In Momentum's case: the monitoring loop writes session data every app-switch while the renderer may be reading it to update the UI — WAL lets both happen at the same time without either waiting
+- If the app crashes mid-write, WAL recovers cleanly on next open; the incomplete write is discarded and the last committed state is preserved
 
 ---
 
 ## Write Strategy
 
-Do not write on every poll. At 10s intervals that's ~2,880 writes per 8-hour day.
+### How the poll reaches SQLite
 
-**Correct pattern:**
-- Maintain an in-memory session: `{ app, url, classification, start_time }`
-- Write to SQLite on **app-switch**: close the outgoing session row (write `end_time` + `total_seconds`), open a new one
-- **Safety flush** every 60s: update `total_seconds` on the open row — crash loses at most 60s of data
-- One row per contiguous session — not one row per poll
+Three layers work together every 10 seconds:
 
-**Aggregation** for trends/thresholds happens at query time, not write time. Raw session data stays intact.
+1. **Node.js (`read_window.ts`)** polls all visible (non-minimized, non-covered) windows and picks the front-most one. For Edge windows it pulls the URL from a shared map that the Python sidecar keeps populated.
+2. **Python (`read-edge-url.py`)** runs as a persistent subprocess, sleeping 5s on startup then polling every 10s — offset to fire at the midpoint of each Node.js window, avoiding a race where both sample simultaneously and Node.js reads a stale URL. It reads the Edge address bar via UI Automation and pipes `{handle, url}` JSON to stdout.
+3. **SQLite (`session-manager.ts`)** receives the `{ app, url }` result from each poll and decides whether to write.
 
-## Session Manager (`session-manager.ts`)
+### What triggers a write
 
-Translates the poll stream from `read_window` into SQLite session rows. On each poll it checks whether the app or URL changed. If unchanged, the session is still running — do nothing. If changed, close the outgoing row and open a new one.
+SQLite is only written when the **foreground window changes** — meaning `data[0]` (the front-most visible window) has a different `app` or `url` than the previous poll. This is not "app exited" vs "app switched" — both look identical: whatever was in front is no longer in front. The outgoing session row is closed (`end_time` + `total_seconds` written) and a new one is opened.
 
-`startSessionManager()` starts the 60s flush timer — call on app launch. `stopSessionManager()` cancels the timer and closes the open session row cleanly — call on `before-quit`.
+If nothing changed, no write occurs. At 10s intervals with typical usage, this keeps writes far below the ~2,880/day that polling every interval would produce.
+
+A **60s safety flush** runs independently — it updates `total_seconds` on the currently open row so a crash loses at most 60s of data.
+
+One row per contiguous session, never one row per poll. Aggregation for trends and thresholds happens at query time, not write time — raw session data stays intact.
+
+### On app exit
+
+`stopSessionManager()` is called on Electron's `before-quit` event. It cancels the 60s flush timer and calls `closeSession()`, which writes `end_time` + `total_seconds` to the open row and sets `activeSession` to null. This ensures the session in progress at exit is closed cleanly rather than left as an open row with no `end_time`.
+
+### Other notes
 
 **`classify()`** is a stub returning `3` (not_sure) for everything. In V1 this is where allowed/disallowed list logic will live. Classification priority: unproductive always overrides productive or not_sure.
 
-**URL edge case**: if Edge is freshly opened and the Python sidecar hasn't read the URL yet, the first poll produces `url=null`. The second poll (10s later) produces the real URL and triggers an app-switch, creating a short orphan row with no URL. Acceptable for V1 — refineable later.
+**URL edge case**: if Edge is freshly opened and the Python sidecar hasn't read the URL yet, the first poll produces `url=null`. The second poll (10s later) produces the real URL and triggers a session change, creating a short orphan row with no URL. Acceptable for V1 — refineable later.
 
 ---
 
