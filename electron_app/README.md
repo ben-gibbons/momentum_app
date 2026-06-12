@@ -53,6 +53,7 @@ src/
     session-manager.ts    # Translates poll stream into SQLite session rows
   preload/
     index.ts              # contextBridge — exposes typed IPC APIs to renderer
+    index.d.ts            # Window type declarations for renderer TypeScript (mirrors index.ts exports)
   renderer/
     src/                  # React UI (Tailwind CSS v4)
 ```
