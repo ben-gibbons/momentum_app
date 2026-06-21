@@ -1,0 +1,52 @@
+/* ============================================================
+   Momentum — Spacing, radius, shadow, motion tokens
+   Round edges, soft warm shadows, gentle motion.
+   ============================================================ */
+
+:root {
+  /* ---- Spacing (4px base) ---- */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+  --space-12: 80px;
+  --space-16: 128px;
+
+  /* ---- Radius (round edges — generous) ---- */
+  --radius-xs: 6px;
+  --radius-sm: 9px;
+  --radius-md: 12px; /* inputs, small controls */
+  --radius-lg: 16px; /* cards, buttons */
+  --radius-xl: 22px; /* panels, large cards */
+  --radius-2xl: 28px; /* hero surfaces, modals */
+  --radius-pill: 999px;
+
+  /* ---- Soft warm shadows (brown-tinted, low, diffuse) ---- */
+  --shadow-xs: 0 1px 2px rgba(56, 44, 24, 0.06);
+  --shadow-sm: 0 1px 2px rgba(56, 44, 24, 0.06), 0 2px 6px rgba(56, 44, 24, 0.05);
+  --shadow-md: 0 2px 4px rgba(56, 44, 24, 0.05), 0 8px 20px rgba(56, 44, 24, 0.08);
+  --shadow-lg: 0 4px 8px rgba(56, 44, 24, 0.06), 0 18px 40px rgba(56, 44, 24, 0.12);
+  --shadow-xl: 0 8px 16px rgba(56, 44, 24, 0.08), 0 30px 60px rgba(56, 44, 24, 0.16);
+  /* Inset for sunken tracks / wells */
+  --shadow-inset: inset 0 1px 2px rgba(56, 44, 24, 0.08);
+  /* Focus ring */
+  --ring-focus: 0 0 0 3px rgba(74, 130, 96, 0.28);
+
+  /* ---- Motion (gentle, grounded — no bounce) ---- */
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1); /* @kind other */
+  --ease-in-out: cubic-bezier(0.45, 0.05, 0.55, 0.95); /* @kind other */
+  --duration-fast: 120ms; /* @kind other */
+  --duration-base: 200ms; /* @kind other */
+  --duration-slow: 320ms; /* @kind other */
+
+  /* ---- Layout ---- */
+  --sidebar-width: 248px;
+  --content-max: 920px;
+}

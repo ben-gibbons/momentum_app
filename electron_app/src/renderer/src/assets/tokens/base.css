@@ -1,0 +1,85 @@
+/* ============================================================
+   Momentum — Base element styles & shared primitives.
+   Light-touch: sets the canvas, type defaults, and a few
+   reusable helpers used across cards and kits.
+   ============================================================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--surface-app);
+  color: var(--text-body);
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Headings default to the brand serif */
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  color: var(--text-strong);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-snug);
+  line-height: var(--leading-tight);
+  margin: 0;
+}
+
+/* Brand wordmark / app title treatment */
+.mm-brand {
+  font-family: var(--font-display);
+  color: var(--text-brand);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-snug);
+}
+
+/* Uppercase eyebrow label */
+.mm-eyebrow {
+  font-family: var(--font-ui);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Numbers that should read as data */
+.mm-data {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-snug);
+}
+
+/* Editorial quote (used in Procrastination Log) */
+.mm-quote {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: var(--weight-regular);
+  color: var(--text-brand);
+  line-height: var(--leading-snug);
+}
+
+a {
+  color: var(--text-brand);
+  text-decoration: none;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+  border-radius: var(--radius-sm);
+}
+
+::selection {
+  background: var(--green-200);
+  color: var(--green-900);
+}

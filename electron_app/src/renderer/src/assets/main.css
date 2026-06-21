@@ -1,1 +1,116 @@
+/* main.css — renderer global stylesheet.
+   Loads Tailwind v4, then the Momentum design tokens (copied verbatim from
+   design_system/tokens/), then maps the semantic tokens into Tailwind's @theme so utility
+   classes (bg-card, text-brand, font-display, ...) resolve to the exact token values. The raw
+   CSS custom properties remain available for pixel-exact component styling via var(--token),
+   matching how the design reference files are authored. Fonts are self-hosted (see fonts.css +
+   main.tsx) so nothing loads from a CDN under the strict renderer CSP. */
 @import 'tailwindcss';
+
+@import './tokens/colors.css';
+@import './tokens/typography.css';
+@import './tokens/spacing.css';
+@import './tokens/fonts.css';
+/* base.css has element rules (h1–h4 color/margin, body, a, ::selection). Import it INTO Tailwind's
+   `base` layer so component utilities (text-sand-50, mt-[10px], leading/tracking) can override
+   them — otherwise these unlayered element rules beat layered utilities in the cascade. */
+@import './tokens/base.css' layer(base);
+
+/* Map design tokens → Tailwind theme. `inline` makes utilities emit the value (a var() ref)
+   directly rather than redefining a theme variable. Curated, clean utility names; everything
+   else stays reachable via raw var(--token). */
+@theme inline {
+  /* Font families */
+  --font-sans: var(--font-ui);
+  --font-display: var(--font-display);
+  --font-data: var(--font-data);
+
+  /* Surfaces */
+  --color-paper: var(--paper);
+  --color-card: var(--surface-card);
+  --color-raised: var(--surface-raised);
+  --color-sunken: var(--surface-sunken);
+  --color-hover: var(--surface-hover);
+  --color-brand-soft: var(--surface-brand-soft);
+  --color-input: var(--surface-input);
+
+  /* Text */
+  --color-ink: var(--text-strong);
+  --color-body: var(--text-body);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+  --color-on-brand: var(--text-on-brand);
+
+  /* Brand + status */
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-productive: var(--status-productive);
+  --color-productive-soft: var(--status-productive-soft);
+  --color-unproductive: var(--status-unproductive);
+  --color-unproductive-soft: var(--status-unproductive-soft);
+  --color-notsure: var(--status-notsure);
+  --color-notsure-soft: var(--status-notsure-soft);
+
+  /* Borders */
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-border-strong: var(--border-strong);
+  --color-border-brand: var(--border-brand);
+
+  /* Raw brand palette (the design uses green-* / sand-* directly) */
+  --color-green-50: var(--green-50);
+  --color-green-100: var(--green-100);
+  --color-green-200: var(--green-200);
+  --color-green-300: var(--green-300);
+  --color-green-400: var(--green-400);
+  --color-green-500: var(--green-500);
+  --color-green-600: var(--green-600);
+  --color-green-700: var(--green-700);
+  --color-green-750: var(--green-750);
+  --color-green-800: var(--green-800);
+  --color-green-900: var(--green-900);
+  --color-sand-50: var(--sand-50);
+  --color-sand-100: var(--sand-100);
+  --color-sand-200: var(--sand-200);
+  --color-sand-250: var(--sand-250);
+  --color-sand-300: var(--sand-300);
+  --color-sand-400: var(--sand-400);
+  --color-sand-500: var(--sand-500);
+  --color-sand-600: var(--sand-600);
+  --color-sand-700: var(--sand-700);
+  --color-sand-800: var(--sand-800);
+  --color-sand-900: var(--sand-900);
+  --color-white: var(--white);
+
+  /* Radii (design scale) */
+  --radius-xs: var(--radius-xs);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
+
+  /* Mount fade-in (used by overlays/dialogs). Runs on mount via the animate-fade-in utility, so
+     components don't need a setState-in-effect to trigger it. Suppressed by motion-reduce:animate-none. */
+  --animate-fade-in: fade-in 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  /* Dialog/popover entrance: fade + slight scale. */
+  --animate-pop-in: pop-in 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}
