@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: momentum_app
+appId: com.momentum.app
+productName: Momentum
 directories:
   buildResources: build
 files:
@@ -11,8 +11,15 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+# The Python sidecar lives under src/ (excluded from the asar) and is run as an external process,
+# so ship it as an extra resource on the real filesystem. read_window.ts resolves it via
+# process.resourcesPath when packaged.
+extraResources:
+  - from: src/main/read-edge-url.py
+    to: read-edge-url.py
 win:
-  executableName: momentum_app
+  executableName: Momentum
+  icon: build/icon.ico
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}

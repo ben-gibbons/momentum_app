@@ -1,0 +1,12 @@
+/* ============================================================
+   Momentum — Webfonts (self-hosted via @fontsource, CSP-safe)
+   Replaces the design system's Google-Fonts CDN @import so the
+   app works offline and under the renderer's strict CSP
+   (default-src 'self'). The actual font files are imported in
+   main.tsx (@fontsource JS imports); this file only documents
+   the families. NOTE: Google-Fonts substitutes — flag to design
+   team if a licensed typeface is preferred.
+   - Newsreader      → brand / display / editorial quotes (serif)
+   - Hanken Grotesk  → UI + body (humanist sans)
+   - JetBrains Mono  → timers, percentages, timestamps (mono)
+   ============================================================ */

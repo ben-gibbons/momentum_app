@@ -1,0 +1,100 @@
+/* ============================================================
+   Momentum — Color tokens
+   A warm, grounded palette. Off-white paper, forest green,
+   warm ink. Semantic colors stay calm — clay over alarm-red,
+   ochre over warning-yellow. Nothing clinical, nothing loud.
+   ============================================================ */
+
+:root {
+  /* ---- Brand greens ---- */
+  --green-900: #234032; /* deepest — text on light, pressed states */
+  --green-800: #2e573e;
+  --green-750: #356046; /* splash field — between 800 and 700 */
+  --green-700: #3c704f; /* PRIMARY brand green (titles, buttons) */
+  --green-600: #4a8260;
+  --green-500: #6e9b7c; /* sage — productive accents, soft fills */
+  --green-400: #8bb098; /* muted sage — between accent and light tint */
+  --green-300: #a9c4af;
+  --green-200: #cfe0d2;
+  --green-100: #e6efe5; /* faint sage wash */
+  --green-50: #f0f5ee;
+
+  /* ---- Warm paper / neutrals (the canvas) ---- */
+  --sand-900: #2a2620; /* warm near-black ink */
+  --sand-800: #3c372f;
+  --sand-700: #544d41;
+  --sand-600: #6b6357; /* muted body / secondary text */
+  --sand-500: #8a8174; /* tertiary / placeholder */
+  --sand-400: #b3a994; /* disabled text, faint icons */
+  --sand-300: #d8cdb6; /* hairlines on darker fills */
+  --sand-250: #e1d7c1; /* default border */
+  --sand-200: #ebe2cf; /* hover surface / track */
+  --sand-150: #f0e8d6; /* raised surface tint */
+  --sand-100: #f7f1e3; /* card surface */
+  --sand-50: #faf6ec; /* lightest surface */
+  --paper: #f2ebda; /* APP BACKGROUND — warm off-white */
+  --white: #fdfbf6; /* warm white (inputs, popovers) */
+
+  /* ---- Semantic status (Momentum's core data model) ---- */
+  /* Productive — calm forest green */
+  --productive-700: #3c704f;
+  --productive-500: #5a9070;
+  --productive-100: #e3eee2;
+  /* Unproductive — warm clay (honest, not alarming) */
+  --clay-700: #a8472f;
+  --clay-500: #c2603f;
+  --clay-100: #f3e1d6;
+  /* Not-sure — soft ochre/sand */
+  --ochre-700: #9a7430;
+  --ochre-500: #c0954c;
+  --ochre-100: #f1e6cf;
+
+  /* ---- Functional accents ---- */
+  --info-500: #4a7a8c; /* muted teal-blue for neutral info */
+  --info-100: #dde9ec;
+  --focus: #4a8260; /* focus ring — sage green */
+
+  /* ============================================================
+     SEMANTIC ALIASES — reference these in components
+     ============================================================ */
+
+  /* Surfaces */
+  --surface-app: var(--paper);
+  --surface-card: var(--sand-100);
+  --surface-raised: var(--sand-50);
+  --surface-sunken: var(--sand-200);
+  --surface-input: var(--white);
+  --surface-inverse: var(--green-900);
+  --surface-hover: var(--sand-200);
+  --surface-brand-soft: var(--green-100);
+
+  /* Text */
+  --text-strong: var(--sand-900);
+  --text-body: var(--sand-800);
+  --text-muted: var(--sand-600);
+  --text-faint: var(--sand-500);
+  --text-disabled: var(--sand-400);
+  --text-brand: var(--green-700);
+  --text-on-brand: var(--sand-50);
+  --text-on-inverse: var(--green-100);
+
+  /* Borders */
+  --border-subtle: var(--sand-200);
+  --border-default: var(--sand-250);
+  --border-strong: var(--sand-300);
+  --border-brand: var(--green-500);
+  --border-focus: var(--focus);
+
+  /* Status aliases */
+  --status-productive: var(--productive-700);
+  --status-productive-soft: var(--productive-100);
+  --status-unproductive: var(--clay-500);
+  --status-unproductive-soft: var(--clay-100);
+  --status-notsure: var(--ochre-500);
+  --status-notsure-soft: var(--ochre-100);
+
+  /* Brand interactive */
+  --brand: var(--green-700);
+  --brand-hover: var(--green-800);
+  --brand-active: var(--green-900);
+}

@@ -8,19 +8,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 For the full problem statement, core concept, and V1–V4 feature scope, see [`docs/brainstorm-session-2026-05-15.md`](docs/brainstorm-session-2026-05-15.md). For the framework architecture decision (Electron), see [`docs/adr-001-electron-framework.md`](docs/adr-001-electron-framework.md). For an entry-level overview of the full stack and how the processes communicate, see [`docs/full-stack-overview.md`](docs/full-stack-overview.md). For the database schema, write strategy, and SQLite configuration, see [`docs/database-overview.md`](docs/database-overview.md).
 
-The repo is currently in **build phase**. Both POC tests have passed. The Electron app scaffold is complete. SQLite storage is wired up. Next step: Daily/Weekly Task UI.
+The repo is currently in **build phase**. Both POC tests have passed. The monitoring loop, SQLite storage, and the full design-system UI are built: the app boots a splash, then a sidebar-routed shell with the Daily Tasks home, Current Session / Productivity Trends, Procrastination Logs + the CBT log flow, Risk Factors, and the "Feeling distracted?" nudge — all wired renderer ⇄ IPC ⇄ SQLite. Remaining work and deferred items are tracked in [`docs/to_do/project_next_steps.md`](docs/to_do/project_next_steps.md) (notably: allowed/disallowed classification, distraction-popup auto-trigger, daily carry-over + weekly task UI, and a richer task-create menu).
 
 ## Electron App Structure
 
-The Electron app lives in `electron_app/`. Key source files in `src/main/`:
+The Electron app lives in `electron_app/`. **Main process** (`src/main/`):
 
-- **`index.ts`** — main process entry point. Creates the window, starts the monitoring loop, starts/stops the session manager.
-- **`read_window.ts`** — polls visible windows every 10s using `get-windows` + `koffi` (`IsIconic`). Also spawns the Python sidecar and owns the `edgeUrls` map. Exports `readWindow(onPoll)`.
-- **`read-edge-url.py`** — Python sidecar spawned by `read_window.ts`. Reads the Edge address bar via UI Automation, emits `{handle, url}` JSON lines to stdout. Copied from `poc/` — the original is retained there for reference.
-- **`db.ts`** — opens the SQLite DB (lazy singleton), creates tables on first launch. All DB access goes through `getDb()`.
-- **`session-manager.ts`** — translates the poll stream into SQLite session rows. Detects app-switches, writes rows, runs a 60s safety flush.
+- **`index.ts`** — entry point. Creates the window (1100×700 non-resizable for the splash; `app:splashDone` grows it into the resizable app), seeds dev fixtures (dev only), registers IPC, starts the monitoring loop + session manager.
+- **`read_window.ts`** — polls visible windows every 10s using `get-windows` + `koffi` (`IsIconic`). Spawns the Python sidecar and owns the `edgeUrls` map. Exports `readWindow(onPoll)`.
+- **`read-edge-url.py`** — Python sidecar. Reads the Edge address bar via UI Automation, emits `{handle, url}` JSON lines to stdout. Retained in `poc/` for reference; shipped to the packaged app via electron-builder `extraResources` (resolved with `process.resourcesPath` when packaged).
+- **`db.ts`** — opens the SQLite DB (lazy singleton); `initSchema()` creates all tables on first call. All DB access goes through `getDb()`.
+- **`session-manager.ts`** — translates the poll stream into SQLite session rows (app-switch writes + 60s safety flush).
+- **`seed.ts`** — dev-only fixture seed (runs when the DB is empty), from the design data contract.
+- **`ipc.ts`** — registers every `ipcMain.handle` channel; thin adapters onto the repositories.
+- **`repositories/`** — all SQL lives here (`tasks`, `sessions`, `logs`, `riskFactors`, `settings`, `distortions`, `util`). Nothing else touches the DB.
 
-The renderer (`src/renderer/src/`) uses React + Tailwind CSS v4 (via `@tailwindcss/vite`). IPC from main to renderer goes through `src/preload/index.ts` via contextBridge.
+**Shared** (`src/shared/types.ts`) — DTOs + the `MomentumApi` type (the `window.api` surface), used by main, preload, and renderer.
+
+**Preload** (`src/preload/`) — `index.ts` exposes `window.api` via contextBridge (`ipcRenderer.invoke`); `index.d.ts` re-exports `MomentumApi` for the renderer. Keep `ipc.ts`, `preload/index.ts`, and `shared/types.ts` in sync when adding a channel.
+
+**Renderer** (`src/renderer/src/`) — React 19 + Tailwind CSS v4. `lib/` (api accessor, `useAsync` hook, formatters), `components/` (presentational), `screens/` (own data + handlers via `window.api`). `assets/tokens/` holds the design tokens mapped into Tailwind's `@theme` in `main.css`; fonts are self-hosted via `@fontsource` (CSP-safe). Conventions established by `screens/Home.tsx`.
+
+## Un-closed Code
+
+Code that exists but is intentionally inert, partial, or stubbed — left open on purpose for a future feature, not a bug. When you touch one of these, also advance its tracked item in [`docs/to_do/project_next_steps.md`](docs/to_do/project_next_steps.md) (Deferred — V1/V2).
+
+- **`classify()` stub** — `src/main/session-manager.ts`. Returns `3` (not_sure) for everything; the `_app`/`_url` params are intentionally unused (kept for the real signature, hence the eslint `^_` ignore). Waiting on the **classification engine** (allowed/disallowed lists + Strict Mode, V1).
+- **Timer `onComplete` hook** — `src/renderer/src/components/log/Timer.tsx`. The 10-minute timer fires an internal `onComplete` callback only; **no Windows notification** is sent. Waiting on the **CBT-timer notification** (V1).
+- **`riskFactors.select(recur)` orphan rows** — `src/main/repositories/riskFactors.ts`. When `recur=true` it writes `risk_factors` rows (`recur_until` = 14 days) intended for a **morning routine that creates recurring daily tasks** — that routine isn't built, so those rows are currently written but never read. Waiting on daily carry-over / recurring-task generation (V1, #13).
+- **"Feeling distracted?" nudge** — `src/renderer/src/components/Nudge.tsx` + `App.tsx`. Renders and routes correctly but only opens **manually** from the sidebar; there's no threshold auto-trigger, and the copy ("…on YouTube…") is hardcoded. Waiting on the **distraction popup auto-trigger + dynamic copy** (V1).
+- **Placeholder screens** — `src/renderer/src/screens/Placeholder.tsx`, rendered for `calendar` and `settings` in `App.tsx`. Settings is V1 (thresholds/toggles/name); Calendar (weekly task lists) is V2/#13.
+- **`session.getCurrent()` / `getTodayFocus()` = today's window** — `src/main/repositories/sessions.ts`. "Current session" is approximated as *today's* totals (a V1 simplification), not a real per-app-launch session boundary. Waiting on a proper session definition.
 
 ## Running the POC
 

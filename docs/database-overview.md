@@ -14,11 +14,13 @@ Run from `electron_app/`. Requires Visual Studio Build Tools with "Desktop devel
 
 ## DB File Location
 
-The database lives in Electron's `userData` directory:
-- **Windows path**: `%APPDATA%\momentum\momentum.db`
-- Set via `app.getPath('userData')` in `db.ts`
-- Survives app updates and is not wiped on reinstall
-- `getDb()` in `db.ts` is lazy — opens the DB on first call, returns the same instance after that
+The database lives in Electron's `userData` directory, set via `app.getPath('userData')` in `db.ts`. The folder name is the Electron app name, so **dev and the packaged app use separate databases**:
+- **Dev** (`npm run dev`): `%APPDATA%\momentum_app\momentum.db` — app name comes from package.json `"name": "momentum_app"`.
+- **Packaged app**: `%APPDATA%\Momentum\momentum.db` — app name comes from electron-builder `productName: Momentum`.
+
+This split is intentional: dev/test data never bleeds into the installed app. Note the packaged app runs with `is.dev === false`, so the dev fixture seed (`seed.ts`) does **not** run — a fresh install starts with an empty DB (correct production behavior). Other notes:
+- Survives app updates and is not wiped on reinstall.
+- `getDb()` in `db.ts` is lazy — opens the DB on first call, returns the same instance after that.
 
 ---
 
@@ -102,6 +104,23 @@ CREATE TABLE tasks (
 
 Completion lives on the **weekly task row** only. Daily task rows reference it via `parent_task_id`. Both views join on the weekly task to read completion state — one source of truth.
 
+**Every daily task has a weekly parent.** A daily promoted from the weekly list links to its origin. A *written-in* daily task (typed directly into the daily list) auto-creates a matching weekly task in its own week and links to it — so it also appears in the weekly list. This keeps the invariant that completion always lives on a weekly row; there is no parent-less daily completion path. (Implemented in `repositories/tasks.ts` `create()`.)
+
+### `task_steps`
+The AI-generated ~20-minute breakdown of a task, surfaced by the home screen's "Steps" disclosure. Added for the V1 task UI / design handoff (not in the original schema). Steps attach to the **daily** task row they are shown under.
+```sql
+CREATE TABLE task_steps (
+  id           INTEGER PRIMARY KEY,
+  task_id      INTEGER NOT NULL REFERENCES tasks(id),
+  ordinal      INTEGER NOT NULL,    -- easiest-first order
+  text         TEXT    NOT NULL,
+  est_minutes  INTEGER,             -- "~10 min"
+  completed    INTEGER NOT NULL DEFAULT 0,
+  completed_at INTEGER
+);
+```
+The "next" step (highlighted with a Start button in the design) is the first incomplete step by `ordinal` — **computed at query time, not stored**.
+
 ### `procrastination_logs`
 ```sql
 CREATE TABLE procrastination_logs (
@@ -150,8 +169,40 @@ CREATE TABLE risk_factors (
 
 Each morning the app checks `risk_factors` for rows where `recur_until >= today` and creates a task row in `tasks` if one doesn't already exist for that day.
 
+A `risk_factors` instance is created **only when the user opts into recurrence** while selecting a factor (`repositories/riskFactors.ts` `select(catalogId, recur)`). Selecting a factor without recurrence just opens a seeded procrastination log and writes no `risk_factors` row.
+
+### `risk_factor_catalog`
+The selectable list of risk factors: a seeded set of defaults plus user-created custom entries. Distinct from `risk_factors` above (which holds *selected recurring instances*). Added for the V1 risk-factors UI.
+```sql
+CREATE TABLE risk_factor_catalog (
+  id         INTEGER PRIMARY KEY,
+  label      TEXT    NOT NULL UNIQUE,
+  is_custom  INTEGER NOT NULL DEFAULT 0,   -- 0 = seeded default, 1 = user-created
+  created_at INTEGER
+);
+```
+
+### `distortions`
+Static Burns cognitive-distortion list, selectable in the procrastination log flow. Seeded once at init; not user-editable. Added for the V1 CBT log UI.
+```sql
+CREATE TABLE distortions (
+  id      INTEGER PRIMARY KEY,
+  ordinal INTEGER NOT NULL,
+  label   TEXT    NOT NULL
+);
+```
+
+### `settings`
+Minimal key/value app settings (greeting name, distraction-popup thresholds, feature toggles). Seeded with defaults: `user_name`, `threshold_unproductive` (120s), `threshold_notsure` (300s), `strict_mode` (0), `break_down_mode` (1).
+```sql
+CREATE TABLE settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+```
+
 ---
 
 ## Adding Tables
 
-Only `sessions` is created at app init currently (`db.ts`). Remaining tables will be added to `db.ts` as their features are built out.
+All tables are created at app init by `initSchema()` in `db.ts` (idempotent `CREATE TABLE IF NOT EXISTS`): `sessions`, `tasks`, `task_steps`, `procrastination_logs`, `log_steps`, `risk_factors`, `risk_factor_catalog`, `distortions`, `settings`. All SQL lives in `db.ts` (schema) or `src/main/repositories/*` (queries) — nothing else touches the DB. In dev, `seed.ts` populates fixture data on first launch (when the `settings` table is empty).

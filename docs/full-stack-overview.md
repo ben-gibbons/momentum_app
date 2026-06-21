@@ -59,10 +59,13 @@ The main process and renderer can't talk to each other directly — they're isol
 2. `src/preload/index.d.ts` tells TypeScript what shape those exposed functions have, so the renderer gets type checking and autocomplete when calling `window.api`.
 3. `contextIsolation: true` enforces the security boundary — the renderer can only access what the preload explicitly hands it.
 
-**Current channel:**
-- `window.api.onMonitorData(callback)` — the renderer subscribes to monitoring updates. Every 10s when the poll runs, the main process packages `{ app, url }` and sends it through.
+**The IPC surface (`window.api`):**
 
-New IPC channels are added to `index.ts` (runtime) and declared in `index.d.ts` (types) as features are built — task reads/writes, threshold triggers, popup events.
+The renderer **pulls** data on demand via typed request/response channels (`ipcRenderer.invoke` → `ipcMain.handle`), grouped by domain: `tasks`, `taskSteps`, `session`, `trends`, `logs`, `riskFactors`, `distortions`, `settings`, and `app`. Each renderer call routes through `src/main/ipc.ts` to a function in `src/main/repositories/*` (the only place SQL lives). The full method list and DTOs are defined in `src/shared/types.ts` (the `MomentumApi` type), which the preload implements and `index.d.ts` re-exports for the renderer.
+
+> Note: the scaffold's original push channel `window.api.onMonitorData` was **removed** once `session-manager.ts` began writing polls straight to SQLite — pushing raw polls to the renderer had no consumer. The renderer reads session/trend data on demand via `session.*`/`trends.*` instead.
+
+New IPC channels are added in three places kept in sync: `src/main/ipc.ts` (handler), `src/preload/index.ts` (bridge), and the `MomentumApi` type in `src/shared/types.ts`.
 
 ---
 
@@ -82,14 +85,23 @@ Every 10 seconds:
 
 ---
 
+## What's Built
+
+The full design-system UI is in place, wired renderer ⇄ IPC ⇄ SQLite: splash → sidebar-routed shell with the Daily Tasks home, Current Session, Productivity Trends, Procrastination Logs + the CBT log flow, Risk Factors, and the "Feeling distracted?" nudge.
+
 ## What's Not Built Yet
+
+Tracked in [`docs/to_do/project_next_steps.md`](to_do/project_next_steps.md) (Deferred — V1/V2). The *screens* above mostly exist; what's missing below is the underlying logic/wiring.
 
 | Feature | Version |
 |---|---|
-| Allowed/disallowed list classification | V1 |
-| Daily/Weekly Task UI | V1 |
-| CBT procrastination log UI | V2 |
-| Distraction popup + threshold logic | V2–V3 |
-| Risk factors page | V3 |
+| Allowed/disallowed classification + Strict Mode (`classify()` is a stub) | V1 |
+| Distraction popup **auto-trigger** + Windows notification (the dialog UI exists) | V1 |
+| CBT timer → Windows notification | V1 |
+| Settings screen (thresholds, toggles, name) | V1 |
+| Daily-task carry-over + weekly task UI + richer task-create menu | V1 |
+| Break notifier (50-min productive) | V2 |
+| Current Session live "Right now" card | V2 |
 | Framer Motion animations | V4 |
 | Anthropic SDK integration | V4 |
+| Code-signing / installer (Smart App Control blocks the unsigned build) | V4 |

@@ -39,19 +39,27 @@ function isCovered(w: WindowInfo, allWindows: WindowInfo[], index: number): bool
 }
 
 function isEdge(w: WindowInfo): boolean {
-  return w.owner.name === 'Microsoft Edge' || w.owner.path?.toLowerCase().includes('msedge') === true
+  return (
+    w.owner.name === 'Microsoft Edge' || w.owner.path?.toLowerCase().includes('msedge') === true
+  )
 }
 
 // Python Sidecar
 function readUrl(): void {
-  const scriptPath = join(app.getAppPath(), 'src', 'main', 'read-edge-url.py')
+  // The .py is excluded from the asar; in a packaged build it's shipped as an extra resource on the
+  // real filesystem (process.resourcesPath). In dev it's read straight from src/main.
+  const scriptPath = app.isPackaged
+    ? join(process.resourcesPath, 'read-edge-url.py')
+    : join(app.getAppPath(), 'src', 'main', 'read-edge-url.py')
   const pyProc = spawn('python', [scriptPath])
 
   createInterface({ input: pyProc.stdout }).on('line', (line) => {
     try {
       const { handle, url } = JSON.parse(line)
       if (handle != null) edgeUrls.set(handle, url)
-    } catch {}
+    } catch {
+      // ignore malformed/partial JSON lines from the sidecar
+    }
   })
 
   pyProc.stderr.on('data', (d) => process.stderr.write(d))
@@ -64,10 +72,12 @@ function readUrl(): void {
 async function poll(onPoll: (data: MonitorData[]) => void): Promise<void> {
   try {
     const all = await openWindows()
-    const visible = all.filter((w, i) =>
-      w.bounds.width > 0 && w.bounds.height > 0 // exclude zero-bounds shell windows (desktop, taskbar)
-      && !IsIconic(w.id)
-      && !isCovered(w, all, i)
+    const visible = all.filter(
+      (w, i) =>
+        w.bounds.width > 0 &&
+        w.bounds.height > 0 && // exclude zero-bounds shell windows (desktop, taskbar)
+        !IsIconic(w.id) &&
+        !isCovered(w, all, i)
     )
 
     if (visible.length === 0) {
