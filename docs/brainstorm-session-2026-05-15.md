@@ -1,7 +1,7 @@
 # Momentum — Brainstorming Session
 Date: 2026-05-15
 
-> **Historical snapshot.** This document records the original brainstorming session and has been lightly updated to reflect confirmed decisions. For current architecture and implementation guidance, see [`CLAUDE.md`](../CLAUDE.md). For the framework decision, see [`docs/adr-001-electron-framework.md`](adr-001-electron-framework.md).
+> **Historical snapshot.** This document records the original brainstorming session and has been lightly updated to reflect confirmed decisions. For current architecture and implementation guidance, see [`CLAUDE.md`](../CLAUDE.md). For the framework decision, see [`docs/archived/adr-001-electron-framework.md`](archived/adr-001-electron-framework.md).
 
 ---
 

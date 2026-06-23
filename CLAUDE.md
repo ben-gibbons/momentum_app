@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Momentum** is a Windows desktop productivity app (Electron/Node.js) that monitors active app and website usage, detects distraction, and prompts CBT-based interventions. The core monitoring loop is: detect foreground app → if Edge, read URL → classify as productive/unproductive/not-sure → trigger interventions at thresholds.
 
-For the full problem statement, core concept, and V1–V4 feature scope, see [`docs/brainstorm-session-2026-05-15.md`](docs/brainstorm-session-2026-05-15.md). For the framework architecture decision (Electron), see [`docs/adr-001-electron-framework.md`](docs/adr-001-electron-framework.md). For an entry-level overview of the full stack and how the processes communicate, see [`docs/full-stack-overview.md`](docs/full-stack-overview.md). For the database schema, write strategy, and SQLite configuration, see [`docs/database-overview.md`](docs/database-overview.md).
+For the full problem statement, core concept, and V1–V4 feature scope, see [`docs/brainstorm-session-2026-05-15.md`](docs/brainstorm-session-2026-05-15.md). For the framework architecture decision (Electron), see [`docs/archived/adr-001-electron-framework.md`](docs/archived/adr-001-electron-framework.md). For an entry-level overview of the full stack and how the processes communicate, see [`docs/full-stack-overview.md`](docs/full-stack-overview.md). For the database schema, write strategy, and SQLite configuration, see [`docs/database-overview.md`](docs/database-overview.md).
 
 The repo is currently in **build phase**. Both POC tests have passed. The monitoring loop, SQLite storage, and the full design-system UI are built: the app boots a splash, then a sidebar-routed shell with the Daily Tasks home, Current Session / Productivity Trends, Procrastination Logs + the CBT log flow, Risk Factors, and the "Feeling distracted?" nudge — all wired renderer ⇄ IPC ⇄ SQLite. Remaining work and deferred items are tracked in [`docs/to_do/project_next_steps.md`](docs/to_do/project_next_steps.md) (notably: allowed/disallowed classification, distraction-popup auto-trigger, daily carry-over + weekly task UI, and a richer task-create menu).
 
@@ -60,7 +60,7 @@ Run `inspect-edge-tree.py` first to confirm `ADDRESS_BAR_AUTO_ID` (`view_1021` b
 
 ## Architecture Decisions (do not revisit without PM approval)
 
-- **Framework**: Electron (Node.js + TypeScript + React). See [`docs/adr-001-electron-framework.md`](docs/adr-001-electron-framework.md) for full rationale.
+- **Framework**: Electron (Node.js + TypeScript + React). See [`docs/archived/adr-001-electron-framework.md`](docs/archived/adr-001-electron-framework.md) for full rationale.
 - **Browser monitoring approach**: Window enumeration via `get-windows` + `koffi` (`IsIconic`) for visibility, and a Python sidecar (`pywinauto`) for Edge URL reading. Window title alone was insufficient — it returns the page title, not the URL, making classification ambiguous. The Python sidecar runs as a persistent subprocess, polls the Edge address bar via UI Automation every 10s (with a 5s initial offset so it fires at the midpoint of each Node.js poll interval), and emits JSON lines `{handle, url}` to Node.js via stdout.
 - **Browser support**: Edge only in V1
 - **Polling interval**: 10 seconds (confirmed V1). Range 1–10s under evaluation; default starts at 10s and may be tuned based on feel. Tracking granularity is second-level — 10s polling captures micro-distractions (attention breaks under 30s) that matter for CBT intervention.

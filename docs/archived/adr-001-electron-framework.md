@@ -3,7 +3,7 @@
 **Status:** Accepted  
 **Date:** 2026-05-19  
 **Author:** Ben (PM)  
-**Informed by:** Architecture tradeoff analysis (`docs/architecture-framework-tradeoff.md`)
+**Informed by:** Architecture tradeoff analysis (`docs/archived/architecture-framework-tradeoff.md`)
 
 ---
 
@@ -18,7 +18,7 @@ Momentum is a Windows-first desktop productivity app requiring:
 
 The primary implementer is Claude Code (AI-driven). A framework decision was required before scaffolding begins.
 
-Five frameworks were evaluated: Electron, Tauri, Qt (C++), PySide6, and Flutter. Full analysis is in `docs/architecture-framework-tradeoff.md`.
+Five frameworks were evaluated: Electron, Tauri, Qt (C++), PySide6, and Flutter. Full analysis is in `docs/archived/architecture-framework-tradeoff.md`.
 
 ---
 
@@ -88,4 +88,4 @@ Edge URL reading uses a Python sidecar (`pywinauto`) running as a persistent sub
 ---
 
 *Next decision: Scaffold structure and component library (pre-V1 build)*  
-*Related docs: `CLAUDE.md`, `docs/architecture-framework-tradeoff.md`*
+*Related docs: `CLAUDE.md`, `docs/archived/architecture-framework-tradeoff.md`*
