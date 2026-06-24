@@ -1,6 +1,6 @@
 # Features Overview
 
-> This document is the product roadmap/backlog for Momentum following its V1 build on 6/21/2026. Features have been added, adjusted, or reprioritized from `brainstorm-session-2026-05-15.md`, `Brainstorm_Features.docx`, and any other document. `Brainstorm_Features.docx` should be referenced for more detailed explanations for certain features.
+> This document is the source of truth for all V1–V6 feature releases. Features have been added, adjusted, or reprioritized from `brainstorm-session-2026-05-15.md`, `Brainstorm_Features.docx`, and any other document. `Brainstorm_Features.docx` should be referenced for more detailed explanations for certain features.
 
 ---
 
@@ -41,7 +41,7 @@ Take the unpolished V1 build to a usable, mostly functioning desktop app with en
 
 ## V2 Features — due 7/5 (really 7/3)
 
-Add necessary features to fill in final placeholders and make app cover all core functionality listed in Brainstorm_Features.docx.
+Add necessary features to fill in final placeholders and make app cover all core functionality detailed in 'Brainstorm_Features.docx'.
 
 - [ ] 1. Pomodoro Timer break notifier, user specified timer amounts, pomodoro time adjustment setting
     - [ ] These should auto fire. Mode for standard countdown and strict-mode (productive data only)
