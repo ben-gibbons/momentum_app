@@ -9,19 +9,30 @@
 Take the unpolished V1 build to a usable, mostly functioning desktop app with entire V1 functionality.
 
 - [ ] 1. Classification engine (allowed/disallowed lists global only, strict mode, classify() and not-sure data — ask claude how to best classify this, classify Windows home screen?)
+    - [ ] `classify()` in `session-manager.ts` is a stub returning `not_sure` (3) for everything — build real `classify(app, url)`; this unblocks accurate Session/Trends data
     - [ ] Unproductive data overrides productive/not-sure data on multiple monitors (add an explanation for this in settings)
+    - [ ] Option to reclassify not-sure data if it was indeed productive or unproductive
 - [ ] 2. Feeling distracted popup trigger, windows notification/force app to front of screen, nudge text is hardcoded not live
+    - [ ] Nudge dialog currently opens manually from the sidebar only — build threshold detection: 2 min unproductive OR 5 min not-sure (default, configurable in Settings)
+    - [ ] Electron: Utilize the win.show() method followed by win.focus() to bring the Electron window to the foreground on the user's screen.
     - [ ] Play around with timing of popup, view risk factors or procrastination log options, option to close popup
     - [ ] Have risk factors and procrastination log options take you to separate popup pages. Risk factors enables you to make a recurring task to help you make it a habit, task has risk factor category
+    - [ ] Dynamic nudge copy: dialog text is hardcoded ("You've been on YouTube…") — drive `appName`/duration from the detected distraction by extending `NudgeProps`; depends on classification engine
 - [ ] 3. Timer + notifications, 10-min for logs (countdown)
+    - [ ] `Timer.tsx` already counts down and fires internal `onComplete` — wire a Windows OS notification that surfaces even when the window is backgrounded
 - [ ] 4. Settings screen is a placeholder, not functioning
     - [ ] Add settings for popup trigger in minutes, break-down mode (V3), strict mode, profile (V2)
+    - [ ] Defaults: 2 min unproductive / 5 min not-sure thresholds; include greeting name field; persists via existing `settings` table / `settings.*` IPC
 - [ ] 5. Daily task carry-over to new day (only incomplete tasks), weekly list sql data review, update written-in tasks to have a popup page to set date/time, category, steps, reminders, Calendar view for daily/weekly, weekly carry-over (double check it follows daily carry-over)
+    - [ ] "Add a task" row currently only captures a title — carry-over, weekly flow, and task-create menu interlock; build together
     - [ ] Weekly default, daily or monthly views
 - [ ] 6. Splash animation
+    - [ ] CSS `offset-path` snowball roll renders imperfectly in Electron (position/size) — A/B against `splash.html` in a browser to tune
+    - [ ] Do not rewrite to SVG `<animateMotion>` — it was tried and reverted (wrong size/start/end, lost wordmark+caption); CSS `offset-path` + keyframes is the correct basis
 - [ ] 7. Productivity Trends page is same as Current Session
-    - [ ] Both pages aren't loading the sql data correctly (stuck at 1h 30m for a while)
-    - [ ] Ensure SQL database is storing daily trends properly as accumulated data and deleting the rest
+    - [ ] early shell built (`screens/Session.tsx`); chart renders but data is all not-sure until the classification engine lands
+    - [ ] Update Current Session shell, create new page for productivity trends (there should be a template for this in ds)
+    - [ ] Ensure SQL database is storing daily/previous day trends properly as accumulated data and deleting the rest for previous days
 - [ ] 8. Verify that logs save and can be reviewed
 - [ ] 9. Reduce clutter in log flow or resize the card (steps 3 and 4, review all steps and remove unnecessary steps)
 - [ ] 10. Npm run dev: still prints active window to terminal (says "starting Electron", says Electron in active window print, right clicking taskbar icon says Electron as well)
@@ -33,6 +44,7 @@ Take the unpolished V1 build to a usable, mostly functioning desktop app with en
 - [ ] 14. Looks like momentum.exe is working now, verify and figure out why (Windows approved us??)
 - [ ] 15. Verify that polling works properly: multiple windows, file explorer vs microsoft edge, minimized items, windows home shell, multiple monitors vs single laptop screen, test Edge (youtube) on half monitor split view
 - [ ] 16. Npm audit warnings
+    - [ ] Pre-existing transitive dev/build deps (vite/esbuild, tar via get-windows, undici, form-data) — not shipped in Electron runtime; revisit cautiously (native-module rebuild risk)
 - [ ] 17. Delete github branch or rename to new feature branch
 - [ ] 18. Security check, crash/edge case testing (fable)
 - [ ] 19. Add V1.0 note to splash screen
@@ -44,11 +56,13 @@ Take the unpolished V1 build to a usable, mostly functioning desktop app with en
 Add necessary features to fill in final placeholders and make app cover all core functionality detailed in 'Brainstorm_Features.docx'.
 
 - [ ] 1. Pomodoro Timer break notifier, user specified timer amounts, pomodoro time adjustment setting
+    - [ ] The home "Toward a break" ring already tracks progress toward 50 mins — the notifier itself isn't wired yet
     - [ ] These should auto fire. Mode for standard countdown and strict-mode (productive data only)
     - [ ] Default is pomodoro auto fires every 50 mins, user specified time overrides this, option to turn off
     - [ ] Slider to make pomodoro/user specified reoccurring or one-time, consider default breaks
     - [ ] Break popup "Nice work. Take a healthy break for 10 minutes, such as a walk around the block (no music), stretching, getting water or a healthy snack, getting fresh air and sunshine, chatting with a friend, a gratitude journal, or breathing/meditating. Visualize what you have accomplished and what you will do during this time."
 - [ ] 2. Current session "live" card (restore or delete)
+    - [ ] Omitted from current build (no live-status data) — add `session.getLiveStatus()` IPC returning current foreground app + classification, then restore the card
 - [ ] 3. Create Profile page or about me page, replace risk factors page with this, make it a tab in profile page
 - [ ] 4. Ensure app is tied to computer's local timezone, add a timezone setting page with manual override
 - [ ] 5. Login in popup page (welcome, create profile, new lists for the week, add daily tasks)
@@ -89,6 +103,7 @@ Add the last features to cover full functionality of Brainstorm_Features.docx. T
 - [ ] 7. Global vs local allowed/disallowed lists per task
 - [ ] 8. Efficiency stats/trends based on task started vs task completed timestamps — in Productivity Trends page
 - [ ] 9. Task list auto-organized by category (buttons show only work, only personal, only hobby, only goal, risk factor habit tasks)
+- [ ] 10. Setting to turn off log popups and replace them with an informational/stat popup
 
 ---
 
@@ -99,6 +114,9 @@ Nice to have features that aren't listed in the brainstorm doc or necessary for 
 - [ ] 1. Mac release, cross-browser support for Safari, Chrome, Firefox
 - [ ] 2. Smart App Control code signing, Windows/Mac packaging (license if smart app control workaround from gemini doesn't work)
     - [ ] Windows smart app control allow app — Google Search
+    - [ ] `build:unpack` produces `dist/win-unpacked/Momentum.exe` but `winCodeSign` errors unless Windows Developer Mode is enabled; Smart App Control blocks the unsigned exe from running
+    - [ ] Code-signing cert costs ~$200–500/yr and needs identity/business verification through a CA; a new cert has no SAC reputation so a freshly-signed build may still be blocked until trust accrues — prefer an EV cert for best SAC reputation
+    - [ ] `npm run dev` is unaffected by SAC and fine for development in the meantime
 - [ ] 3. "Help me get started" button for tasks
 - [ ] 4. Feature to pull in sleep data from Garmin
 - [ ] 5. Pull screentime data from iPhone (see if there is a timestamp for phone screentime data to adjust computer productive/unproductive/not-sure data to unproductive data)
@@ -108,6 +126,7 @@ Nice to have features that aren't listed in the brainstorm doc or necessary for 
 - [ ] 9. App usage data: streak, total days, consecutive days, monthly totals
 - [ ] 10. Task list (daily + steps, calendar) auto-populates after Claude scans email inbox
 - [ ] 11. Deadlines feature — Claude auto-populates milestones into your calendar when you input large future deadlines
+- [ ] 12. Any app licensing needed to publish app. Any licensing/patents to make it legal for me to monetize/protect my IP 
 
 ---
 
