@@ -6,6 +6,7 @@ Windows desktop productivity app that monitors active app and website usage, det
 
 - **Electron** + **TypeScript** + **React 19** + **Tailwind CSS v4**
 - **SQLite** (`better-sqlite3`) for local data storage
+- **`get-windows`** + **`koffi`** (`IsIconic` via Win32) for foreground window polling and minimized detection
 - **Python sidecar** (`pywinauto`) for Edge URL reading via UI Automation
 - **lucide-react** icons; **@fontsource** self-hosted fonts (Newsreader / Hanken Grotesk / JetBrains Mono — CSP-safe, no CDN)
 
@@ -56,7 +57,7 @@ src/
     session-manager.ts    # Translates poll stream into SQLite session rows
     seed.ts               # Dev-only fixture seed (runs when the DB is empty)
     ipc.ts                # Registers ipcMain.handle channels (adapters onto repositories)
-    repositories/         # All SQL lives here (tasks, sessions, logs, riskFactors, settings, …)
+    repositories/         # All SQL lives here (tasks, sessions, logs, riskFactors, settings, distortions, util)
   shared/
     types.ts              # DTOs + the MomentumApi type (the window.api surface)
   preload/
@@ -64,13 +65,24 @@ src/
     index.d.ts            # Re-exports MomentumApi for the renderer
   renderer/
     src/
-      lib/                # api accessor, useAsync hook, formatters
-      components/         # presentational components (+ log/ subcomponents)
-      screens/            # screens that own data + handlers via window.api
-      assets/tokens/      # design tokens mapped into Tailwind @theme (main.css)
+      App.tsx             # Sidebar routing shell; mounts Nudge
+      lib/                # api accessor (api.ts), useAsync hook, formatters
+      components/         # presentational components; log/, risk/, session/ subfolders
+      screens/            # Splash, Home, Session, Logs, ProcrastinationLog, RiskFactors, Placeholder
+      assets/
+        main.css          # Tailwind entry; imports tokens
+        tokens/           # design tokens mapped into Tailwind @theme
+        brand/            # mark, icons, snowball asset
 ```
 
 > Adding an IPC channel touches three files kept in sync: `src/main/ipc.ts`, `src/preload/index.ts`, and the `MomentumApi` type in `src/shared/types.ts`.
+
+## Known Stubs (intentionally inert — V1 Deferred)
+
+- **`classify()` in `session-manager.ts`** — returns `not_sure` (3) for everything. All monitored time is recorded as not-sure until the classification engine is built. This is why Session and Trends screens show only not-sure data.
+- **"Feeling distracted?" nudge** — `Nudge.tsx` renders correctly but only opens manually from the sidebar. The threshold auto-trigger (2 min unproductive / 5 min not-sure) is not yet wired.
+- **Settings screen** — `Placeholder.tsx` is rendered for the `settings` route. The `settings` table and `settings.*` IPC exist; the UI is not built yet.
+- **`Timer.tsx` `onComplete`** — the 10-minute log timer counts down and fires an internal callback, but no Windows OS notification is sent on completion.
 
 ## Data Storage
 
