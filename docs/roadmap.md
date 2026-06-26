@@ -120,12 +120,12 @@ Nice to have features that aren't listed in the brainstorm doc or necessary for 
 - [ ] 3. "Help me get started" button for tasks
 - [ ] 4. Feature to pull in sleep data from Garmin
 - [ ] 5. Pull screentime data from iPhone (see if there is a timestamp for phone screentime data to adjust computer productive/unproductive/not-sure data to unproductive data)
-- [ ] 6. Claude API uses risk factor information, sleep, goal, phone screentime data to deliver personalized popups/nudges
+- [ ] 6. Claude API or algorithm uses risk factor information, sleep, goal, phone screentime data to deliver personalized popups/nudges
 - [ ] 7. End of day/week debrief (similar to lets-go-home), after Claude integration. Include skippable options
 - [ ] 8. Framer Motion animations
 - [ ] 9. App usage data: streak, total days, consecutive days, monthly totals
 - [ ] 10. Task list (daily + steps, calendar) auto-populates after Claude scans email inbox
-- [ ] 11. Deadlines feature — Claude auto-populates milestones into your calendar when you input large future deadlines
+- [ ] 11. Deadlines feature — Claude auto-populates milestones into your calendar when you input large future deadlines, accounting for size of task and current to-do list
 - [ ] 12. Any app licensing needed to publish app. Any licensing/patents to make it legal for me to monetize/protect my IP 
 
 ---
