@@ -104,6 +104,7 @@ Add the last features to cover full functionality of Brainstorm_Features.docx. T
 - [ ] 8. Efficiency stats/trends based on task started vs task completed timestamps — in Productivity Trends page
 - [ ] 9. Task list auto-organized by category (buttons show only work, only personal, only hobby, only goal, risk factor habit tasks)
 - [ ] 10. Setting to turn off log popups and replace them with an informational/stat popup
+- [ ] 11. Gantt chart with Claude API (or other visuals for large scale projects so Calendar doesn't get bloated, factor in dependencies)
 
 ---
 
