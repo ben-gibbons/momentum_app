@@ -91,7 +91,7 @@ The full design-system UI is in place, wired renderer ⇄ IPC ⇄ SQLite: splash
 
 ## What's Not Built Yet
 
-Tracked in [`docs/to_do/project_next_steps.md`](to_do/project_next_steps.md) (Deferred — V1/V2). The *screens* above mostly exist; what's missing below is the underlying logic/wiring.
+Tracked in [`docs/roadmap.md`](roadmap.md) (Deferred — V1/V2). The *screens* above mostly exist; what's missing below is the underlying logic/wiring.
 
 | Feature | Version |
 |---|---|

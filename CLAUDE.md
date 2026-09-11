@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 For the full problem statement and core concept, see [`docs/archived/brainstorm-session-2026-05-15.md`](docs/archived/brainstorm-session-2026-05-15.md). For the V1–V6 feature roadmap (source of truth for all feature releases), see [`docs/roadmap.md`](docs/roadmap.md). For an entry-level overview of the full stack and how the processes communicate, see [`docs/full-stack-overview.md`](docs/full-stack-overview.md). For the database schema, write strategy, and SQLite configuration, see [`docs/database-overview.md`](docs/database-overview.md). For the Electron app structure, stack, setup, and project structure, see [`electron_app/README.md`](electron_app/README.md). For the design system tokens, components, and UI conventions, see [`design_system/README.md`](design_system/README.md).
 
-The repo is currently in **build phase**. Both POC tests have passed. The monitoring loop, SQLite storage, and the full design-system UI are built: the app boots a splash, then a sidebar-routed shell with the Daily Tasks home, Current Session / Productivity Trends, Procrastination Logs + the CBT log flow, Risk Factors, and the "Feeling distracted?" nudge — all wired renderer ⇄ IPC ⇄ SQLite. Remaining work and deferred items are tracked in [`docs/to_do/project_next_steps.md`](docs/to_do/project_next_steps.md) (notably: allowed/disallowed classification, distraction-popup auto-trigger, daily carry-over + weekly task UI, and a richer task-create menu).
+The repo is currently in **build phase**. Both POC tests have passed. The monitoring loop, SQLite storage, and the full design-system UI are built: the app boots a splash, then a sidebar-routed shell with the Daily Tasks home, Current Session / Productivity Trends, Procrastination Logs + the CBT log flow, Risk Factors, and the "Feeling distracted?" nudge — all wired renderer ⇄ IPC ⇄ SQLite. Remaining work and deferred items are tracked in [`docs/roadmap.md`](docs/roadmap.md) (notably: allowed/disallowed classification, distraction-popup auto-trigger, daily carry-over + weekly task UI, and a richer task-create menu).
 
 ## Electron App Structure
 
@@ -31,7 +31,7 @@ The Electron app lives in `electron_app/`. **Main process** (`src/main/`):
 
 ## Un-closed Code
 
-Code that exists but is intentionally inert, partial, or stubbed — left open on purpose for a future feature, not a bug. When you touch one of these, also advance its tracked item in [`docs/to_do/project_next_steps.md`](docs/to_do/project_next_steps.md) (Deferred — V1/V2).
+Code that exists but is intentionally inert, partial, or stubbed — left open on purpose for a future feature, not a bug. When you touch one of these, also advance its tracked item in [`docs/roadmap.md`](docs/roadmap.md) (Deferred — V1/V2).
 
 - **`classify()` stub** — `src/main/session-manager.ts`. Returns `3` (not_sure) for everything; the `_app`/`_url` params are intentionally unused (kept for the real signature, hence the eslint `^_` ignore). Waiting on the **classification engine** (allowed/disallowed lists + Strict Mode, V1).
 - **Timer `onComplete` hook** — `src/renderer/src/components/log/Timer.tsx`. The 10-minute timer fires an internal `onComplete` callback only; **no Windows notification** is sent. Waiting on the **CBT-timer notification** (V1).
@@ -118,7 +118,7 @@ Full schema (all tables, columns, constraints, write strategy) is in [`docs/data
 
 ## Task Tracking
 
-All upcoming work items and next steps are tracked in `docs/to_do/project_next_steps.md`. Personal tasks unrelated to the project are tracked in `docs/to_do/personal_tasks.md`. Do not add "What Comes Next" lists to this file — keep CLAUDE.md focused on architecture, decisions, and implementation guidance.
+All upcoming work items and next steps are tracked in `docs/roadmap.md`. Personal tasks unrelated to the project are tracked in `docs/to_do/personal_tasks.md`. Do not add "What Comes Next" lists to this file — keep CLAUDE.md focused on architecture, decisions, and implementation guidance.
 
 ## Session Start
 
