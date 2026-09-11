@@ -42,21 +42,7 @@ Code that exists but is intentionally inert, partial, or stubbed — left open o
 
 ## Running the POC
 
-### Test 1 — Foreground app detection (Node.js)
-```
-cd poc
-npm install
-node test-active-win.mjs
-```
-
-### Test 2 — Edge URL reading (Python)
-```
-pip install pywinauto
-python poc/inspect-edge-tree.py   # Step 1: find address bar AutomationId
-python poc/read-edge-url.py       # Step 2: poll URLs
-```
-
-Run `inspect-edge-tree.py` first to confirm `ADDRESS_BAR_AUTO_ID` (`view_1021` by default) on the target machine.
+To re-run the two POC scripts (Node.js foreground detection, Python Edge URL reading), see [`poc/README.md`](poc/README.md).
 
 ## Architecture Decisions (do not revisit without PM approval)
 
