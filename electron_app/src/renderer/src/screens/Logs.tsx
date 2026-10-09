@@ -1,17 +1,15 @@
 // screens/Logs.tsx
 // The Procrastination Logs landing list ("a record, not a report card"). Reads api.logs.list()
 // (LogListItem[]), sorts newest-first, and renders each as a tappable row that opens the saved log
-// for review/edit via the embedded ProcrastinationLog overlay (loaded by id). A "New log" button
+// for review/edit (App owns the ProcrastinationLog overlay; this screen asks for it). A "New log" button
 // opens a fresh flow. Design source: the LogsList component in design_system/interactive-flows/
 // index.html (the `.mm-logslist`/`.mm-logitem` styles) + the view header pattern from kit.css.
-// Main-content panel only — no sidebar (the lead composes the shell + routing in Phase 3).
-import { useState } from 'react'
+// Main-content panel only — no sidebar.
 import { ChevronRight, NotebookPen, Plus } from 'lucide-react'
 import type { LogListItem } from '../../../shared/types'
 import { api } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
 import { formatStamp } from '../lib/format'
-import ProcrastinationLog from './ProcrastinationLog'
 
 // Row title: the timestamp formatted from createdAt (MM/DD/YY h:mm AM/PM, app-wide format), plus
 // the "· lack of X" suffix when the label carries one (risk-factor logs). We format from createdAt
@@ -22,18 +20,25 @@ function rowTitle(item: LogListItem): string {
   return formatStamp(item.createdAt) + suffix
 }
 
-export default function Logs(): React.JSX.Element {
-  const logs = useAsync(() => api.logs.list(), [])
-  // null = no overlay; { id } = review/edit existing; { id: undefined } = new log.
-  const [open, setOpen] = useState<{ id?: number } | null>(null)
+// How the log was started. Manual logs get no pill — that's the default; the pill is for the
+// two ways Momentum itself prompted the log.
+const SOURCE_LABEL: Partial<Record<NonNullable<LogListItem['source']>, string>> = {
+  popup: 'From a nudge',
+  risk_factor: 'Risk factor'
+}
+
+interface LogsProps {
+  // App owns the single ProcrastinationLog overlay (so the distraction nudge knows when a log is
+  // open); this screen only asks for it. `logFlowOpen` flips when that overlay closes → refetch.
+  onOpenLog: (logId?: number) => void
+  logFlowOpen: boolean
+}
+
+export default function Logs({ onOpenLog, logFlowOpen }: LogsProps): React.JSX.Element {
+  const logs = useAsync(() => api.logs.list(), [logFlowOpen])
 
   // Newest first by createdAt (Unix seconds).
   const items: LogListItem[] = [...(logs.data ?? [])].sort((a, b) => b.createdAt - a.createdAt)
-
-  function closeOverlay(): void {
-    setOpen(null)
-    logs.reload()
-  }
 
   return (
     <main className="overflow-y-auto bg-paper">
@@ -51,7 +56,7 @@ export default function Logs(): React.JSX.Element {
             </p>
           </div>
           <button
-            onClick={() => setOpen({})}
+            onClick={() => onOpenLog()}
             className="inline-flex flex-none items-center gap-2 rounded-lg bg-brand px-4 py-[10px] text-[14px] font-semibold text-on-brand transition-colors hover:bg-brand-hover"
           >
             <Plus className="h-[17px] w-[17px]" /> New log
@@ -68,15 +73,22 @@ export default function Logs(): React.JSX.Element {
               {items.map((l) => (
                 <button
                   key={l.id}
-                  onClick={() => setOpen({ id: l.id })}
+                  onClick={() => onOpenLog(l.id)}
                   className="flex items-center gap-[14px] rounded-lg border border-transparent bg-raised px-4 py-3 text-left transition-colors hover:border-border-brand hover:bg-green-50"
                 >
                   <span className="inline-flex h-[38px] w-[38px] flex-none items-center justify-center rounded-md bg-brand-soft text-brand">
                     <NotebookPen className="h-[18px] w-[18px]" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-semibold text-ink">
-                      {rowTitle(l)}
+                    <span className="flex items-center gap-2">
+                      <span className="truncate text-[15px] font-semibold text-ink">
+                        {rowTitle(l)}
+                      </span>
+                      {l.source && SOURCE_LABEL[l.source] && (
+                        <span className="flex-none rounded-full bg-brand-soft px-[10px] py-[3px] text-[11px] font-semibold text-brand">
+                          {SOURCE_LABEL[l.source]}
+                        </span>
+                      )}
                     </span>
                     {l.emotion && (
                       <span className="mt-[2px] block font-data text-[12px] text-muted">
@@ -92,7 +104,6 @@ export default function Logs(): React.JSX.Element {
         </div>
       </div>
 
-      {open && <ProcrastinationLog logId={open.id} onClose={closeOverlay} />}
     </main>
   )
 }

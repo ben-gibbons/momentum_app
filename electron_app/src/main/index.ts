@@ -1,12 +1,14 @@
 // index.ts
-// Main process entry point. Creates the BrowserWindow, starts the monitoring loop
-// (readWindow), and starts the session manager (SQLite writes). Stops the session
-// manager cleanly on before-quit so the open session row is closed before exit.
+// Main process entry point. Creates the BrowserWindow, starts the session manager (SQLite
+// writes) and the monitoring lifecycle (monitoring.ts). Stops the session manager cleanly on
+// before-quit so the open session row is closed before exit.
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
-import { readWindow } from './read_window'
-import { onPoll, startSessionManager, stopSessionManager } from './session-manager'
+import { startSessionManager, stopSessionManager } from './session-manager'
+import { startMonitoring, stopMonitoring } from './monitoring'
 import { registerIpc } from './ipc'
 import { seedDevFixtures } from './seed'
+import { setMainWindow } from './window'
+import { handleDistraction } from './distraction'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -29,6 +31,10 @@ function createWindow(): void {
       contextIsolation: true
     }
   })
+
+  // Register the window for bringToFront() / notification clicks (window.ts); clear it on close.
+  setMainWindow(win)
+  win.on('closed', () => setMainWindow(null))
 
   win.on('ready-to-show', () => {
     win.show()
@@ -63,8 +69,9 @@ app.whenReady().then(() => {
   registerIpc()
 
   createWindow()
-  startSessionManager()
-  readWindow(onPoll)
+  startSessionManager({ onDistraction: handleDistraction })
+  // Polling, the sidecar, and the lock/sleep + Settings-toggle lifecycle live in monitoring.ts.
+  startMonitoring()
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -72,6 +79,7 @@ app.whenReady().then(() => {
 })
 
 app.on('before-quit', () => {
+  stopMonitoring()
   stopSessionManager()
 })
 

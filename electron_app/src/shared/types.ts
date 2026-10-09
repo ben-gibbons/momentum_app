@@ -131,6 +131,68 @@ export interface RiskFactorCatalogItem {
   isCustom: boolean
 }
 
+// ---- Classification (sessions.classification codes + productive/unproductive rules) ----
+
+// Named codes for sessions.classification. Also used as a type (the union 1 | 2 | 3).
+export const Classification = {
+  PRODUCTIVE: 1,
+  UNPRODUCTIVE: 2,
+  NOT_SURE: 3
+} as const
+export type Classification = (typeof Classification)[keyof typeof Classification]
+
+export type RuleKind = 'app' | 'site'
+
+// One productive (1) / unproductive (2) list entry. pattern is lowercase; for sites it is the bare
+// hostname (no scheme, path, or leading "www."), matched at a dot boundary (youtube.com also
+// matches m.youtube.com).
+export interface ClassificationRule {
+  id: number
+  kind: RuleKind
+  pattern: string
+  classification: 1 | 2
+  createdAt: number
+}
+
+export interface RuleInput {
+  kind: RuleKind
+  pattern: string // raw user input; normalized by the repository
+  classification: 1 | 2
+}
+
+// A not-sure app or site awaiting reclassification (Settings "Not sure yet" list).
+export interface NotSureItem {
+  kind: RuleKind
+  pattern: string // app name as recorded, or lowercase host
+  minutes: number
+  lastSeen: number // Unix seconds
+}
+
+// ---- Settings + distraction push ----
+
+// Typed view of the settings table. Durations are seconds.
+export interface AppSettings {
+  userName: string
+  thresholdUnproductive: number
+  thresholdNotSure: number
+  // Time between nudges, per classification; each is at least its threshold.
+  cooldownUnproductive: number
+  cooldownNotSure: number
+  // Master switch: off = no polling, no sidecar, no session rows, no nudges (Settings toggle).
+  monitoringEnabled: boolean
+  strictMode: boolean
+}
+
+// Pushed main → renderer (push:distraction) when a contiguous unproductive / not-sure run crosses
+// its threshold. label is what the nudge names: the host for sites, the app name otherwise.
+export interface DistractionEvent {
+  classification: 2 | 3
+  app: string
+  url: string | null
+  label: string
+  runSeconds: number
+}
+
 // ---- The window.api surface exposed by the preload bridge ----
 
 export interface MomentumApi {
@@ -165,13 +227,33 @@ export interface MomentumApi {
   distortions: {
     list(): Promise<string[]>
   }
+  rules: {
+    list(): Promise<ClassificationRule[]>
+    // Upserts the rule and rewrites matching past not-sure session rows; reclassified = rows changed.
+    add(input: RuleInput): Promise<{ rule: ClassificationRule; reclassified: number }>
+    remove(id: number): Promise<void> // never reverts session rows
+    listNotSure(): Promise<NotSureItem[]>
+  }
   settings: {
     get(key: string): Promise<string | null>
     set(key: string, value: string): Promise<void>
+    getAll(): Promise<AppSettings> // typed, with defaults for missing keys
   }
   app: {
     // Called when the cold-start splash finishes: resizes the 1100x700 splash window into the
     // normal resizable app window.
     splashDone(): Promise<void>
+    // OS toast; clicking it brings the Momentum window forward.
+    notify(title: string, body: string): Promise<void>
+    // Called by the renderer once it has shown the nudge for a pushed DistractionEvent: bring the
+    // window forward and show the OS toast. (The renderer owns the decision so a nudge it
+    // suppresses — e.g. while a log is open — produces no toast either.)
+    raiseDistraction(event: DistractionEvent): Promise<void>
+  }
+  events: {
+    // Main → renderer push. Returns an unsubscribe function (for useEffect cleanup).
+    onDistraction(cb: (e: DistractionEvent) => void): () => void
+    // Monitoring paused (lock screen / sleep) or resumed; the timer store follows it.
+    onMonitoringPaused(cb: (paused: boolean) => void): () => void
   }
 }

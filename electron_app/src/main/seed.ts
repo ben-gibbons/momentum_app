@@ -110,12 +110,15 @@ const LOGS = [
 ]
 
 function insertSession(start: number, classification: number, mins: number): void {
+  // Not-sure rows use 'Desktop' (excluded from the Settings reclassify list) so dev isn't
+  // asked to classify "Seed"; productive/unproductive rows keep the 'Seed' marker.
+  const app = classification === 3 ? 'Desktop' : 'Seed'
   getDb()
     .prepare(
-      `INSERT INTO sessions (app, url, classification, start_time, end_time, total_seconds)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO sessions (app, app_key, url, classification, start_time, end_time, total_seconds)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
-    .run('Seed', null, classification, start, start + mins * MIN, mins * MIN)
+    .run(app, app.toLowerCase(), null, classification, start, start + mins * MIN, mins * MIN)
 }
 
 export function seedDevFixtures(): void {
@@ -129,7 +132,10 @@ export function seedDevFixtures(): void {
       ['user_name', 'Ben'],
       ['threshold_unproductive', '120'],
       ['threshold_notsure', '300'],
+      ['cooldown_unproductive', '240'],
+      ['cooldown_notsure', '600'],
       ['strict_mode', '0'],
+      ['monitoring_enabled', '1'],
       ['break_down_mode', '1']
     ]
     const setStmt = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)')

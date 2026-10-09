@@ -4,7 +4,9 @@
 // `.mm-log*` styles in kit.css). Phases: intro quote → 5 steps → done quote. Distortions come from
 // api.distortions.list(); on finish the form is mapped to a LogInput and persisted via
 // api.logs.create (or api.logs.update when editing an existing log id). If `logId` is given the
-// saved log is loaded for review/edit; `seedRiskFactor` pre-fills a risk-factor log.
+// saved log is loaded for review/edit; `seedRiskFactor` pre-fills a risk-factor log; `source`
+// records how a new log was opened ('popup' from the nudge, else 'manual'). The step-4 timer lives
+// in the app-wide timer store (lib/timers.tsx), keyed per log, so it survives closing the overlay.
 //
 // Field → DTO mapping lives in toLogInput() at the bottom; the form mirrors LogInput / LogStep[]
 // (shared/types.ts) one-to-one.
@@ -21,6 +23,7 @@ import { useAsync } from '../lib/useAsync'
 import { formatStamp } from '../lib/format'
 import { Stepper } from '../components/log/Stepper'
 import { Timer } from '../components/log/Timer'
+import { useTimers } from '../lib/timers'
 import {
   NumberField,
   SelectField,
@@ -126,12 +129,14 @@ type Phase = 'intro' | number | 'done'
 interface ProcrastinationLogProps {
   logId?: number
   seedRiskFactor?: string
+  source?: LogSource // only used on create; a risk-factor seed overrides it
   onClose?: () => void
 }
 
 export default function ProcrastinationLog({
   logId,
   seedRiskFactor,
+  source,
   onClose
 }: ProcrastinationLogProps): React.JSX.Element | null {
   // When editing, wait for the saved log before mounting the form so its initial state can be set
@@ -148,6 +153,7 @@ export default function ProcrastinationLog({
       initialLog={existing.data ?? null}
       logId={logId}
       seedRiskFactor={seedRiskFactor}
+      source={source}
       onClose={onClose}
     />
   )
@@ -157,10 +163,17 @@ interface LogFlowProps {
   initialLog: SavedLog | null
   logId?: number
   seedRiskFactor?: string
+  source?: LogSource
   onClose?: () => void
 }
 
-function LogFlow({ initialLog, logId, seedRiskFactor, onClose }: LogFlowProps): React.JSX.Element {
+function LogFlow({
+  initialLog,
+  logId,
+  seedRiskFactor,
+  source,
+  onClose
+}: LogFlowProps): React.JSX.Element {
   const distortions = useAsync(() => api.distortions.list(), [])
   // Initial state is derived directly from the loaded log (editing) or empty (new) via lazy
   // initializers — so no hydration effect is needed. Editing opens on step 1; a new log on the intro.
@@ -169,6 +182,10 @@ function LogFlow({ initialLog, logId, seedRiskFactor, onClose }: LogFlowProps): 
   )
   const [phase, setPhase] = useState<Phase>(() => (initialLog ? 0 : 'intro'))
   const [saving, setSaving] = useState(false)
+  // Identity of this log's timer in the store: a saved log reuses its id (reopening it shows the
+  // same timer); a not-yet-saved log gets one stable uuid per mount so it still gets exactly one.
+  const [timerKey] = useState(() => (logId != null ? `log-${logId}` : `new-${crypto.randomUUID()}`))
+  const timers = useTimers()
 
   function patch(p: Partial<FormState>): void {
     setForm((f) => ({ ...f, ...p }))
@@ -187,11 +204,14 @@ function LogFlow({ initialLog, logId, seedRiskFactor, onClose }: LogFlowProps): 
     if (saving) return
     setSaving(true)
     try {
-      const input = toLogInput(form, seedRiskFactor, logId == null)
+      const input = toLogInput(form, seedRiskFactor, logId == null, source)
       if (logId != null) {
         await api.logs.update(logId, input)
       } else {
-        await api.logs.create(input)
+        const id = await api.logs.create(input)
+        // The step-4 timer was keyed on this mount's uuid; hand it the saved id so reopening the
+        // log finds the same running timer instead of offering a second one.
+        timers.rekey(timerKey, `log-${id}`)
       }
       setPhase('done')
     } finally {
@@ -401,7 +421,9 @@ function LogFlow({ initialLog, logId, seedRiskFactor, onClose }: LogFlowProps): 
                     </button>
                   )}
 
-                  <Timer />
+                  {/* The store sends the OS toast at zero (so the user hears it even if Momentum
+                      is behind other windows). The label names the timer on the Home tile. */}
+                  <Timer timerKey={timerKey} label={timerLabel(form.taskText)} />
                 </div>
               )}
 
@@ -462,6 +484,14 @@ function LogFlow({ initialLog, logId, seedRiskFactor, onClose }: LogFlowProps): 
   )
 }
 
+// "Log: <task text>" (truncated to 40 chars) for the timer store / Home tile; falls back to a
+// generic label when the task hasn't been named yet.
+function timerLabel(taskText: string): string {
+  const t = taskText.trim()
+  if (!t) return 'Procrastination log'
+  return `Log: ${t.length > 40 ? t.slice(0, 39) + '…' : t}`
+}
+
 // "Today · 06/20/26 9:42 AM" — the step-1 date/time hint. Uses the app-wide formatStamp
 // (MM/DD/YY h:mm AM/PM) so every date/time in the flow reads consistently.
 function nowHint(d: Date = new Date()): string {
@@ -470,8 +500,14 @@ function nowHint(d: Date = new Date()): string {
 
 // Map the form state onto the LogInput DTO. Blank strings become null so the DB stores nulls, not
 // empty strings. Steps map to LogStep[] with sequential stepNumber. `source` is only set on create
-// (popup/manual/risk_factor); on update we leave it to the repository's existing value.
-function toLogInput(form: FormState, seedRiskFactor?: string, isCreate?: boolean): LogInput {
+// (a risk-factor seed wins, else the caller's source — 'popup' from the nudge — else 'manual');
+// on update we leave it to the repository's existing value.
+function toLogInput(
+  form: FormState,
+  seedRiskFactor?: string,
+  isCreate?: boolean,
+  source?: LogSource
+): LogInput {
   const nz = (s: string): string | null => (s.trim() === '' ? null : s.trim())
 
   const steps: LogStep[] = form.steps
@@ -502,8 +538,7 @@ function toLogInput(form: FormState, seedRiskFactor?: string, isCreate?: boolean
   }
 
   if (isCreate) {
-    const source: LogSource = seedRiskFactor ? 'risk_factor' : 'manual'
-    input.source = source
+    input.source = seedRiskFactor ? 'risk_factor' : (source ?? 'manual')
   }
 
   return input

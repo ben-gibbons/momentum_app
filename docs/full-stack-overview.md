@@ -65,7 +65,7 @@ The renderer **pulls** data on demand via typed request/response channels (`ipcR
 
 > Note: the scaffold's original push channel `window.api.onMonitorData` was **removed** once `session-manager.ts` began writing polls straight to SQLite — pushing raw polls to the renderer had no consumer. The renderer reads session/trend data on demand via `session.*`/`trends.*` instead.
 
-New IPC channels are added in three places kept in sync: `src/main/ipc.ts` (handler), `src/preload/index.ts` (bridge), and the `MomentumApi` type in `src/shared/types.ts`.
+New IPC channels are added in three places kept in sync: `src/main/ipc.ts` (handler), `src/preload/index.ts` (bridge), and the `MomentumApi` type in `src/shared/types.ts`. Main → renderer pushes use `webContents.send` on `push:`-prefixed channels (`push:distraction`, `push:monitoringPaused`), exposed to the renderer as `api.events.on*` subscriptions that return an unsubscribe.
 
 ---
 
@@ -75,10 +75,10 @@ New IPC channels are added in three places kept in sync: `src/main/ipc.ts` (hand
 Every 10 seconds:
   Node.js polls foreground windows
     → Python sidecar reads Edge URL (fires at 5s midpoint)
-    → classify(app, url) → productive / unproductive / not_sure
-    → if app changed: write closed session to SQLite, open new row
+    → classifyPoll(all visible windows, rules, strict) → productive / unproductive / not_sure
+    → if app, url, or classification changed: close the session row, open a new one
+    → threshold detector: contiguous run past its threshold → push DistractionEvent to renderer
     → every 60s: safety flush open session row to SQLite
-    → send { app, url } to renderer via IPC
 ```
 
 **SQLite write strategy:** one row per contiguous session, not one row per poll. Aggregation (for trends and thresholds) happens at query time. See [`database-overview.md`](database-overview.md) for full schema and write strategy.
@@ -87,7 +87,7 @@ Every 10 seconds:
 
 ## What's Built
 
-The full design-system UI is in place, wired renderer ⇄ IPC ⇄ SQLite: splash → sidebar-routed shell with the Daily Tasks home, Current Session, Productivity Trends, Procrastination Logs + the CBT log flow, Risk Factors, and the "Feeling distracted?" nudge.
+The full design-system UI is in place, wired renderer ⇄ IPC ⇄ SQLite: splash → sidebar-routed shell with the Daily Tasks home (with app-wide timers), Current Session, Productivity Trends, Procrastination Logs + the CBT log flow, Risk Factors, the "Feeling distracted?" nudge, and Settings. The monitoring loop classifies every poll against the user's Productive / Unproductive lists (strict mode optional), a threshold detector fires the nudge (OS toast + window to front, repeating every cooldown), and polling pauses on lock screen / sleep.
 
 ## What's Not Built Yet
 
@@ -95,11 +95,8 @@ Tracked in [`docs/roadmap.md`](roadmap.md) (Deferred — V1/V2). The *screens* a
 
 | Feature | Version |
 |---|---|
-| Allowed/disallowed classification + Strict Mode (`classify()` is a stub) | V1 |
-| Distraction popup **auto-trigger** + Windows notification (the dialog UI exists) | V1 |
-| CBT timer → Windows notification | V1 |
-| Settings screen (thresholds, toggles, name) | V1 |
 | Daily-task carry-over + weekly task UI + richer task-create menu | V1 |
+| Splash animation tuning; Productivity Trends as its own page | V1 |
 | Break notifier (50-min productive) | V2 |
 | Current Session live "Right now" card | V2 |
 | Framer Motion animations | V4 |

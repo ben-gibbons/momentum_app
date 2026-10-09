@@ -8,41 +8,48 @@
 
 Take the unpolished V1 build to a usable, mostly functioning desktop app with entire V1 functionality.
 
-- [ ] 1. Classification engine (allowed/disallowed lists global only, strict mode, classify() and not-sure data — ask claude how to best classify this, classify Windows home screen?)
-    - [ ] `classify()` in `session-manager.ts` is a stub returning `not_sure` (3) for everything — build real `classify(app, url)`; this unblocks accurate Session/Trends data
-    - [ ] Unproductive data overrides productive/not-sure data on multiple monitors (add an explanation for this in settings)
-    - [ ] Option to reclassify not-sure data if it was indeed productive or unproductive
-- [ ] 2. Feeling distracted popup trigger, windows notification/force app to front of screen, nudge text is hardcoded not live
-    - [ ] Nudge dialog currently opens manually from the sidebar only — build threshold detection: 2 min unproductive OR 5 min not-sure (default, configurable in Settings)
-    - [ ] Electron: Utilize the win.show() method followed by win.focus() to bring the Electron window to the foreground on the user's screen.
-    - [ ] Play around with timing of popup, view risk factors or procrastination log options, option to close popup
-    - [ ] Have risk factors and procrastination log options take you to separate popup pages. Risk factors enables you to make a recurring task to help you make it a habit, task has risk factor category
-    - [ ] Dynamic nudge copy: dialog text is hardcoded ("You've been on YouTube…") — drive `appName`/duration from the detected distraction by extending `NudgeProps`; depends on classification engine
-- [ ] 3. Timer + notifications, 10-min for logs (countdown)
-    - [ ] `Timer.tsx` already counts down and fires internal `onComplete` — wire a Windows OS notification that surfaces even when the window is backgrounded
-- [ ] 4. Settings screen is a placeholder, not functioning
-    - [ ] Add settings for popup trigger in minutes, break-down mode (V3), strict mode, profile (V2)
-    - [ ] Defaults: 2 min unproductive / 5 min not-sure thresholds; include greeting name field; persists via existing `settings` table / `settings.*` IPC
+- [x] 1. Classification engine — completed 2026-10-06 (Productive/Unproductive lists, strict mode, `classifier.ts` + vitest; see `docs/database-overview.md`)
+    - [x] `classify()` stub replaced by `classifyPoll()` over all visible windows; sessions carry `host` + `app_key`; rules table + migrations — completed 2026-10-06
+    - [x] Unproductive anywhere overrides; otherwise the front window decides (explained in Settings → "How multiple windows are counted") — completed 2026-10-06
+    - [x] Reclassify not-sure data: Settings → "Not sure yet" (adds a rule and rewrites past rows; sort by time / recent; 30-day window) — completed 2026-10-06
+    - [ ] DECIDE: what goes in the default Productive and Unproductive lists. Migration 3 in `db.ts` seeds a placeholder set (Momentum App, VS Code, Office apps, github/docs.google/stackoverflow → productive; youtube/netflix/twitch/reddit/x/twitter/facebook/instagram/tiktok → unproductive). Rationale: users rarely notice which sites eat focus beyond their top few, and an unlisted site on a side monitor is not-sure, not unproductive
+    - [ ] DECIDE: the explanation text for the Settings classification section (lists are named Productive / Unproductive, not allowed / disallowed — Momentum classifies time, it doesn't block)
+- [x] 2. Feeling distracted popup trigger, windows notification/force app to front of screen, dynamic nudge text — completed 2026-10-06
+    - [x] Threshold detection (`threshold.ts`): contiguous run, per-class thresholds + cooldowns (Settings), re-nudges every cooldown while the user stays put; Desktop / Momentum App never nudge — completed 2026-10-06
+    - [x] Window to front via `setAlwaysOnTop` hop + `focus()` + `flashFrame` (`window.ts`); OS toast via Electron `Notification` — completed 2026-10-06
+    - [x] Popup has an X; log / risk-factor actions keep existing routing; nudge-started logs are tagged "From a nudge" — completed 2026-10-06
+    - [x] Dynamic copy from the DistractionEvent (site/app + exact run length); not-sure toasts explain why — completed 2026-10-06
+    - [ ] Risk factor → recurring task with a risk-factor category: moved to item 5 (needs the daily routine)
+- [x] 3. Timers + notifications — completed 2026-10-06
+    - [x] App-wide timer store (`lib/timers.tsx`) + Timers tile on Daily Tasks: log timers outlive the log, custom timers (min + sec), OS toast + repeating beep (mutable), Restart; timers pause with monitoring on lock/sleep. In-memory only — completed 2026-10-06
+- [x] 4. Settings screen — completed 2026-10-06
+    - [x] Name, nudge thresholds + per-class cooldowns (min + sec, 10 s steps, cooldown ≥ threshold), strict mode, Productive / Unproductive lists with placeholder suggestions, "Not sure yet" reclassify list, multi-window explanation; autosaves — completed 2026-10-06
+    - [x] Master on/off switch on the Distraction popup card (`monitoring_enabled`): off stops polling, the sidecar, session rows and nudges, and greys out every polling-dependent setting — completed 2026-10-07
+    - [ ] Break-down mode (V3) and profile (V2) controls deliberately omitted until their versions
 - [ ] 5. Daily task carry-over to new day (only incomplete tasks), weekly list sql data review, update written-in tasks to have a popup page to set date/time, category, steps, reminders, Calendar view for daily/weekly, weekly carry-over (double check it follows daily carry-over)
     - [ ] "Add a task" row currently only captures a title — carry-over, weekly flow, and task-create menu interlock; build together
     - [ ] Weekly default, daily or monthly views
+    - [ ] Morning routine generates the recurring daily task for each active `risk_factors` row (moved from item 2; needs a `risk_factor` task category)
 - [ ] 6. Splash animation
     - [ ] CSS `offset-path` snowball roll renders imperfectly in Electron (position/size) — A/B against `splash.html` in a browser to tune
     - [ ] Do not rewrite to SVG `<animateMotion>` — it was tried and reverted (wrong size/start/end, lost wordmark+caption); CSS `offset-path` + keyframes is the correct basis
 - [ ] 7. Productivity Trends page is same as Current Session
-    - [ ] early shell built (`screens/Session.tsx`); chart renders but data is all not-sure until the classification engine lands
+    - [x] early shell built (`screens/Session.tsx`); real classification data flows since 2026-10-06 — completed 2026-10-06
     - [ ] Update Current Session shell, create new page for productivity trends (there should be a template for this in ds)
     - [ ] Ensure SQL database is storing daily/previous day trends properly as accumulated data and deleting the rest for previous days
 - [ ] 8. Verify that logs save and can be reviewed
+    - [ ] Packaged-build gap: `distortions` and `risk_factor_catalog` defaults are seeded only by dev `seed.ts`, so a fresh install has an empty distortion list in the log flow — move those static seeds into a `db.ts` migration (the Productive/Unproductive defaults already live there)
 - [ ] 9. Reduce clutter in log flow or resize the card (steps 3 and 4, review all steps and remove unnecessary steps)
 - [ ] 10. Npm run dev: still prints active window to terminal (says "starting Electron", says Electron in active window print, right clicking taskbar icon says Electron as well)
-    - [ ] Change this print to a "running Momentum app" or remove all print statements once you verify the sql window/url tracking is working properly
+    - [x] Poll output collapsed to one `[poll] front: … · also visible: …` line per poll; Momentum's own window prints as "Momentum App" — completed 2026-10-06
+    - [ ] Remaining: the "starting Electron" banner and the taskbar name are electron-vite / dev-only; decide whether to silence `[poll]` / `[session]` lines entirely once tracking is trusted
 - [ ] 11. Remove all the excess eyebrow text (pages already show header + caption, eyebrow is redundant)
 - [ ] 12. Make sure top right focused timer, "this session" timing card, "toward a break" card are all linked to the correct page
 - [ ] 13. Review how polling works and how sql is stored
     - [ ] Review database question in "Polling Structure" tab with working polling/sql data to see which works best
 - [ ] 14. Looks like momentum.exe is working now, verify and figure out why (Windows approved us??)
 - [ ] 15. Verify that polling works properly: multiple windows, file explorer vs microsoft edge, minimized items, windows home shell, multiple monitors vs single laptop screen, test Edge (youtube) on half monitor split view
+    - [x] Edge windows without an address bar (sites saved as apps, picture-in-picture, DevTools) are named from their title and classified as apps; the New Tab page is the app "Edge - New tab"; all Edge channels report as "Microsoft Edge"; verified live with a Hulu app window — completed 2026-10-09
 - [ ] 16. Npm audit warnings
     - [ ] Pre-existing transitive dev/build deps (vite/esbuild, tar via get-windows, undici, form-data) — not shipped in Electron runtime; revisit cautiously (native-module rebuild risk)
 - [ ] 17. Delete github branch or rename to new feature branch
