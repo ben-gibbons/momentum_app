@@ -150,7 +150,11 @@ export function TimersProvider({ children }: { children: React.ReactNode }): Rea
             prev.map((t) =>
               t.endsAt === null
                 ? t
-                : { ...t, endsAt: null, remainingSecs: Math.max(0, Math.ceil((t.endsAt - now) / 1000)) }
+                : {
+                    ...t,
+                    endsAt: null,
+                    remainingSecs: Math.max(0, Math.ceil((t.endsAt - now) / 1000))
+                  }
             )
           )
         } else {

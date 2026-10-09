@@ -227,9 +227,9 @@ const MIGRATIONS: ((database: Database.Database) => void)[] = [
   // v5 → v6: the single popup_cooldown setting splits into one per classification. Carry the old
   // value into both so an existing user keeps their choice; the renamed key is dropped.
   (database) => {
-    const old = database.prepare("SELECT value FROM settings WHERE key = 'popup_cooldown'").get() as
-      | { value: string }
-      | undefined
+    const old = database
+      .prepare("SELECT value FROM settings WHERE key = 'popup_cooldown'")
+      .get() as { value: string } | undefined
     if (old) {
       const ins = database.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)')
       ins.run('cooldown_unproductive', old.value)

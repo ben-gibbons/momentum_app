@@ -69,10 +69,7 @@ export function getAll(): AppSettings {
       DEFAULTS.thresholdUnproductive
     ),
     thresholdNotSure: numberOr(kv.get('threshold_notsure'), DEFAULTS.thresholdNotSure),
-    cooldownUnproductive: numberOr(
-      kv.get('cooldown_unproductive'),
-      DEFAULTS.cooldownUnproductive
-    ),
+    cooldownUnproductive: numberOr(kv.get('cooldown_unproductive'), DEFAULTS.cooldownUnproductive),
     cooldownNotSure: numberOr(kv.get('cooldown_notsure'), DEFAULTS.cooldownNotSure),
     strictMode: kv.has('strict_mode') ? kv.get('strict_mode') === '1' : DEFAULTS.strictMode,
     monitoringEnabled: kv.has('monitoring_enabled')

@@ -55,8 +55,7 @@ const api: MomentumApi = {
   app: {
     splashDone: () => ipcRenderer.invoke('app:splashDone'),
     notify: (title: string, body: string) => ipcRenderer.invoke('app:notify', title, body),
-    raiseDistraction: (event: DistractionEvent) =>
-      ipcRenderer.invoke('app:raiseDistraction', event)
+    raiseDistraction: (event: DistractionEvent) => ipcRenderer.invoke('app:raiseDistraction', event)
   },
   // Main → renderer push channels (prefixed push:). The wrapper hides the IpcRendererEvent and
   // returns an unsubscribe so a useEffect can clean up.

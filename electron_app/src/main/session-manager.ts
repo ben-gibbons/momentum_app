@@ -166,9 +166,7 @@ function closeOrphanRows(): void {
   if (r.changes > 0) console.log(`[session] closed ${r.changes} orphan row(s) from a previous run`)
 }
 
-export function startSessionManager(opts: {
-  onDistraction: (e: DistractionEvent) => void
-}): void {
+export function startSessionManager(opts: { onDistraction: (e: DistractionEvent) => void }): void {
   onDistraction = opts.onDistraction
   closeOrphanRows()
   flushTimer = setInterval(safetyFlush, 60_000)

@@ -79,7 +79,10 @@ export function Nudge({
           Feeling distracted?
         </h2>
         {bodyCopy(distraction).map((line) => (
-          <p key={line} className="mx-auto mt-[10px] max-w-[320px] text-[15px] leading-[1.5] text-body">
+          <p
+            key={line}
+            className="mx-auto mt-[10px] max-w-[320px] text-[15px] leading-[1.5] text-body"
+          >
             {line}
           </p>
         ))}

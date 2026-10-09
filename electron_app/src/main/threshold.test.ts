@@ -43,7 +43,8 @@ describe('threshold detector', () => {
     // Fire payload: exactly at the threshold, with the run length (sampled continuously so the
     // sleep-gap detector doesn't restart the run).
     let s = step(initialState(0), { classification: 2, app: 'x', host: null }, 0, cfg).state
-    for (let t = POLL; t < 120; t += POLL) s = step(s, { classification: 2, app: 'x', host: null }, t, cfg).state
+    for (let t = POLL; t < 120; t += POLL)
+      s = step(s, { classification: 2, app: 'x', host: null }, t, cfg).state
     expect(step(s, { classification: 2, app: 'x', host: null }, 120, cfg).fire).toEqual({
       classification: 2,
       runSeconds: 120
@@ -55,7 +56,8 @@ describe('threshold detector', () => {
     const r = run(initialState(0), Classification.NOT_SURE, 40, 0)
     expect(r.fires).toEqual([300])
     let s = initialState(0)
-    for (let t = POLL; t < 300; t += POLL) s = step(s, { classification: 3, app: 'x', host: null }, t, cfg).state
+    for (let t = POLL; t < 300; t += POLL)
+      s = step(s, { classification: 3, app: 'x', host: null }, t, cfg).state
     expect(step(s, { classification: 3, app: 'x', host: null }, 300, cfg).fire).toEqual({
       classification: 3,
       runSeconds: 300
@@ -131,7 +133,12 @@ describe('threshold detector', () => {
     let r = run(initialState(0), Classification.UNPRODUCTIVE, 6, 0) // 60s in, t=60
     // Laptop sleeps for 8h; the next sample is the same class but far past MAX_GAP_SECS.
     const wake = r.t + 8 * 3600
-    const s = step(r.state, { classification: 2, app: 'Microsoft Edge', host: 'example.com' }, wake, cfg)
+    const s = step(
+      r.state,
+      { classification: 2, app: 'Microsoft Edge', host: 'example.com' },
+      wake,
+      cfg
+    )
     expect(s.fire).toBeNull()
     expect(s.state.runStart).toBe(wake)
     // From the wake sample it still needs the full threshold.
