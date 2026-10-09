@@ -153,24 +153,33 @@ interface NumberFieldProps {
   value: number | null
   onChange: (value: number | null) => void
   placeholder?: string
+  step?: number // spinner increment (e.g. 10 for a seconds box that follows the 10s poll)
+  max?: number
+  compact?: boolean // narrower box for two-digit values (Settings min/sec pairs)
 }
 
-// Whole-minutes input (predicted/actual time). Empty string maps to null so unset stays null.
+// Whole-number input (predicted/actual time, settings durations). Empty string maps to null so
+// unset stays null.
 export function NumberField({
   label,
   value,
   onChange,
-  placeholder
+  placeholder,
+  step,
+  max,
+  compact
 }: NumberFieldProps): React.JSX.Element {
   return (
     <FieldShell label={label}>
       <input
         type="number"
         min={0}
+        max={max}
+        step={step}
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
         placeholder={placeholder}
-        className="w-24 rounded-md border border-border-strong bg-input px-[13px] py-[11px] font-data text-[15px] text-body outline-none transition-colors placeholder:text-faint focus:border-border-brand"
+        className={`${compact ? 'w-[66px] px-[10px]' : 'w-24 px-[13px]'} rounded-md border border-border-strong bg-input py-[11px] font-data text-[15px] text-body outline-none transition-colors placeholder:text-faint focus:border-border-brand`}
       />
     </FieldShell>
   )

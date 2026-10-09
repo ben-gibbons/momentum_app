@@ -1,9 +1,11 @@
 // components/SessionTiles.tsx
-// The two tiles below the Today card: "This session" (productive big-number + a productive/
+// The tiles below the Today card: "This session" (productive big-number + a productive/
 // unproductive/not-sure stat bar) and "Toward a break" (an SVG progress ring toward the 50-min
-// break target). Data comes from session.getCurrent + session.getTodayFocus.
+// break target) on the first row, and the "Timers" tile under "This session" on the second (it
+// reads the timer store itself). Session data comes from session.getCurrent + session.getTodayFocus.
 import type { SessionTotals, TodayFocus } from '../../../shared/types'
 import { formatHM } from '../lib/format'
+import { TimersTile } from './TimersTile'
 
 const RING_RADIUS = 24
 const RING_CIRC = 2 * Math.PI * RING_RADIUS // ≈ 150.8
@@ -77,6 +79,10 @@ export function SessionTiles({ current, focus }: SessionTilesProps): React.JSX.E
         <div className="mb-[14px] text-[13px] font-semibold text-ink">Toward a break</div>
         <BreakRing focus={focus} />
       </div>
+
+      {/* Third grid child → row 2, left column (under "This session"); row 2's right column stays
+          empty. */}
+      <TimersTile />
     </div>
   )
 }

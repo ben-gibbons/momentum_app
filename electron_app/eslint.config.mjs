@@ -26,7 +26,7 @@ export default defineConfig(
     rules: {
       ...eslintPluginReactHooks.configs.recommended.rules,
       ...eslintPluginReactRefresh.configs.vite.rules,
-      // Allow intentionally-unused args/vars prefixed with _ (e.g. classify(_app, _url) stub params).
+      // Allow intentionally-unused args/vars prefixed with _ (e.g. the `_e` event arg in ipcMain.handle callbacks).
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }

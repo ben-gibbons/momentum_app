@@ -4,7 +4,7 @@
 // mirror the MomentumApi surface in src/shared/types.ts and the preload bridge. Repositories are
 // synchronous (better-sqlite3); ipcMain.handle wraps the return value in a promise for the renderer.
 import { ipcMain, BrowserWindow } from 'electron'
-import type { LogInput, TaskInput } from '../shared/types'
+import type { DistractionEvent, LogInput, RuleInput, TaskInput } from '../shared/types'
 
 // App window size after the splash (the splash window is 1100x700, non-resizable).
 const APP_WIDTH = 1280
@@ -15,6 +15,10 @@ import * as logs from './repositories/logs'
 import * as riskFactors from './repositories/riskFactors'
 import * as settings from './repositories/settings'
 import * as distortions from './repositories/distortions'
+import * as rules from './repositories/classificationRules'
+import { notify } from './notify'
+import { raiseDistraction } from './distraction'
+import { setMonitoringEnabled } from './monitoring'
 
 export function registerIpc(): void {
   // Tasks
@@ -48,9 +52,25 @@ export function registerIpc(): void {
   // Distortions
   ipcMain.handle('distortions:list', () => distortions.list())
 
+  // Classification rules (productive / unproductive lists + the reclassify-not-sure list)
+  ipcMain.handle('rules:list', () => rules.list())
+  ipcMain.handle('rules:add', (_e, input: RuleInput) => rules.add(input))
+  ipcMain.handle('rules:remove', (_e, id: number) => rules.remove(id))
+  ipcMain.handle('rules:listNotSure', () => rules.listNotSure())
+
   // Settings
   ipcMain.handle('settings:get', (_e, key: string) => settings.get(key))
-  ipcMain.handle('settings:set', (_e, key: string, value: string) => settings.set(key, value))
+  ipcMain.handle('settings:set', (_e, key: string, value: string) => {
+    settings.set(key, value)
+    // The master switch takes effect immediately (other keys are re-read every poll anyway).
+    if (key === 'monitoring_enabled') setMonitoringEnabled(value === '1')
+  })
+  ipcMain.handle('settings:getAll', () => settings.getAll())
+
+  // OS toast (notify() coerces + clamps the strings).
+  ipcMain.handle('app:notify', (_e, title: string, body: string) => notify(title, body))
+  // The renderer shows the nudge for a pushed DistractionEvent, then asks for the window + toast.
+  ipcMain.handle('app:raiseDistraction', (_e, event: DistractionEvent) => raiseDistraction(event))
 
   // App window: grow the 1100x700 splash window into the resizable app window.
   ipcMain.handle('app:splashDone', (e) => {

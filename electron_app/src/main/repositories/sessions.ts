@@ -1,9 +1,14 @@
 // repositories/sessions.ts
 // Read-side aggregations over the raw sessions table. Per docs/database-overview.md, session
 // and trend totals are computed at query time (not stored) so the raw per-session rows remain
-// the single source of truth. classification: 1=productive, 2=unproductive, 3=not_sure.
+// the single source of truth. classification codes: see Classification in shared/types.
 import { getDb } from '../db'
-import type { SessionTotals, TodayFocus, TrendDay } from '../../shared/types'
+import {
+  Classification,
+  type SessionTotals,
+  type TodayFocus,
+  type TrendDay
+} from '../../shared/types'
 import { nowSecs, startOfDay, weekStartMonday } from './util'
 
 const DAY_SECS = 86400
@@ -26,8 +31,8 @@ function emptyTotals(): SessionTotals {
 
 function addSecs(totals: SessionTotals, classification: number, secs: number): void {
   const mins = secs / 60
-  if (classification === 1) totals.productive += mins
-  else if (classification === 2) totals.unproductive += mins
+  if (classification === Classification.PRODUCTIVE) totals.productive += mins
+  else if (classification === Classification.UNPRODUCTIVE) totals.unproductive += mins
   else totals.notsure += mins
 }
 
@@ -66,7 +71,7 @@ export function getTodayFocus(): TodayFocus {
   let streakSecs = 0
   for (const r of rows) {
     const d = durationOf(r)
-    if (r.classification === 1) {
+    if (r.classification === Classification.PRODUCTIVE) {
       focusedSecs += d
       streakSecs += d // accumulate the trailing productive run...
     } else {

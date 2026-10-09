@@ -1,22 +1,35 @@
 // components/Nudge.tsx
 // The "Feeling distracted?" nudge — a centered modal dialog (design source: the `Dialog` in
-// design_system/interactive-flows/index.html → App). Shown when distraction is detected (the lead
-// wires the trigger + routing in Phase 3). Two stacked actions: a primary "Try a procrastination
-// log" and a secondary "View risk factors". Presentational: open state + all handlers come from the
-// parent. Backdrop click and the Escape key both close. Honors prefers-reduced-motion via
-// motion-reduce on the fade/scale transition.
+// design_system/interactive-flows/index.html → App). Opened by App.tsx either when the main
+// process pushes a DistractionEvent (a contiguous unproductive / not-sure run crossed its
+// threshold) or manually from the sidebar. The body copy names the app/site and run length from
+// the event; with no event (sidebar) it falls back to generic copy. Two stacked actions: a primary
+// "Try a procrastination log" and a secondary "View risk factors". Presentational: open state +
+// all handlers come from the parent. Backdrop click and the Escape key both close. Honors
+// prefers-reduced-motion via motion-reduce on the fade/scale transition.
 import { useEffect } from 'react'
-import { Wind } from 'lucide-react'
+import { Wind, X } from 'lucide-react'
+import type { DistractionEvent } from '../../../shared/types'
+import { distractionLines } from '../../../shared/format'
 
 interface NudgeProps {
   open: boolean
+  // The triggering event; null/undefined when opened manually from the sidebar.
+  distraction?: DistractionEvent | null
   onClose?: () => void
   onTryLog?: () => void
   onViewRisk?: () => void
 }
 
+// Body copy, one array entry per line: a pushed event uses the shared lines (identical to the OS
+// toast); a manual open from the sidebar gets a generic line.
+function bodyCopy(d: DistractionEvent | null | undefined): string[] {
+  return d ? distractionLines(d) : ["Let's take a look at what's pulling at you — no pressure."]
+}
+
 export function Nudge({
   open,
+  distraction,
   onClose,
   onTryLog,
   onViewRisk
@@ -47,8 +60,15 @@ export function Nudge({
         aria-modal="true"
         aria-labelledby="nudge-title"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[400px] rounded-xl border border-border-default bg-card p-7 text-center shadow-sm animate-pop-in motion-reduce:animate-none"
+        className="relative w-full max-w-[400px] rounded-xl border border-border-default bg-card p-7 text-center shadow-sm animate-pop-in motion-reduce:animate-none"
       >
+        <button
+          aria-label="Close"
+          onClick={onClose}
+          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-hover hover:text-body"
+        >
+          <X className="h-4 w-4" />
+        </button>
         <div className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-soft text-brand">
           <Wind className="h-6 w-6" />
         </div>
@@ -58,9 +78,11 @@ export function Nudge({
         >
           Feeling distracted?
         </h2>
-        <p className="mx-auto mt-[10px] max-w-[320px] text-[15px] leading-[1.5] text-body">
-          You&apos;ve been on YouTube for a couple of minutes. Let&apos;s take a look — no pressure.
-        </p>
+        {bodyCopy(distraction).map((line) => (
+          <p key={line} className="mx-auto mt-[10px] max-w-[320px] text-[15px] leading-[1.5] text-body">
+            {line}
+          </p>
+        ))}
 
         <div className="mt-6 flex flex-col gap-[10px]">
           <button
