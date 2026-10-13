@@ -5,7 +5,7 @@
 // sized to 1100x700 (non-resizable) for the splash, then becomes the normal resizable app on Home.
 // All splash CSS is ported verbatim into a scoped <style> block (root .vsplash → .mm-splash).
 //
-// Props: onDone() fires after ~2s for the cold-start transition (wired in Phase 3); omit onDone to
+// Props: onDone() fires after one 3.23 s loop for the cold-start transition; omit onDone to
 // let it loop (preview). Fine-tuning of the loader is tracked as a post-Phase-3 task.
 import { useEffect } from 'react'
 import snowball from '../assets/brand/snowball-new-w.png'
@@ -14,7 +14,8 @@ interface SplashProps {
   onDone?: () => void
 }
 
-const SPLASH_MS = 2000
+// One full 3.23 s loop of the roll animation, so the snowball lands before the shell appears (D12).
+const SPLASH_MS = 3230
 
 const CSS = `
 .mm-splash-frame { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -33,7 +34,7 @@ const CSS = `
 .mm-splash .v-mark { display: inline-flex; flex: 0 0 auto; width: 83px; height: 83px; color: var(--paper); }
 .mm-splash .v-mark svg { width: 100%; height: 100%; display: block; }
 .mm-splash .v-title { line-height: 1; font-family: var(--font-display); font-weight: 500; font-size: 64px;
-  letter-spacing: -.01em; color: var(--paper); }
+  letter-spacing: -.01em; color: var(--paper); text-box-trim: trim-both; text-box-edge: cap alphabetic; }
 .mm-splash .v-loading { display: inline-flex; align-items: center; gap: 12px; transform: translateX(5px); }
 .mm-splash .v-cap { display: inline-flex; align-items: baseline; gap: 8px; }
 .mm-splash .v-caption { line-height: 1; font-family: var(--font-display); font-style: italic; font-weight: 400;

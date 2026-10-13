@@ -7,9 +7,9 @@ import { Hero } from '../components/Hero'
 import { TodayCard } from '../components/TodayCard'
 import { SessionTiles } from '../components/SessionTiles'
 import { useAsync } from '../lib/useAsync'
-import { startOfTodaySecs } from '../lib/format'
 import { api } from '../lib/api'
 import type { SessionTotals, TodayFocus } from '../../../shared/types'
+import { startOfDay } from '../../../shared/dates'
 
 const ZERO_SESSION: SessionTotals = { productive: 0, unproductive: 0, notsure: 0 }
 const ZERO_FOCUS: TodayFocus = {
@@ -21,12 +21,14 @@ const ZERO_FOCUS: TodayFocus = {
 // The Daily Tasks home screen. Content-only (the app shell in App.tsx owns the sidebar + routing).
 interface HomeProps {
   onNewLog?: () => void
+  onOpenTrends?: () => void // "This session" tile → Productivity Trends
+  dayKey?: number // bumped by App when the daily routine ran (new day / carry-over): refetch
 }
 
-export default function Home({ onNewLog }: HomeProps): React.JSX.Element {
-  const tasks = useAsync(() => api.tasks.listDaily(), [])
-  const current = useAsync(() => api.session.getCurrent(), [])
-  const focus = useAsync(() => api.session.getTodayFocus(), [])
+export default function Home({ onNewLog, onOpenTrends, dayKey }: HomeProps): React.JSX.Element {
+  const tasks = useAsync(() => api.tasks.listDaily(), [dayKey])
+  const current = useAsync(() => api.session.getCurrent(), [dayKey])
+  const focus = useAsync(() => api.session.getTodayFocus(), [dayKey])
   const userName = useAsync(() => api.settings.get('user_name'), [])
 
   const dailyTasks = tasks.data ?? []
@@ -41,7 +43,7 @@ export default function Home({ onNewLog }: HomeProps): React.JSX.Element {
     tasks.reload()
   }
   async function addTask(title: string): Promise<void> {
-    await api.tasks.create({ type: 'daily', title, date: startOfTodaySecs() })
+    await api.tasks.create({ type: 'daily', title, date: startOfDay() })
     tasks.reload()
   }
 
@@ -60,7 +62,11 @@ export default function Home({ onNewLog }: HomeProps): React.JSX.Element {
           onToggleStep={toggleStep}
           onAddTask={addTask}
         />
-        <SessionTiles current={current.data ?? ZERO_SESSION} focus={focus.data ?? ZERO_FOCUS} />
+        <SessionTiles
+          current={current.data ?? ZERO_SESSION}
+          focus={focus.data ?? ZERO_FOCUS}
+          onOpenTrends={onOpenTrends}
+        />
       </div>
     </main>
   )

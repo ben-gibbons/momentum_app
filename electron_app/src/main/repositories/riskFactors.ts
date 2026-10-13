@@ -40,9 +40,19 @@ export function select(catalogId: number, recur = false): number {
 
   if (recur) {
     const now = nowSecs()
-    getDb()
-      .prepare('INSERT INTO risk_factors (factor, created_at, recur_until) VALUES (?, ?, ?)')
-      .run(factor.label, now, now + RECUR_DAYS * 86400)
+    const until = now + RECUR_DAYS * 86400
+    // Re-selecting a factor that is still active extends its window rather than starting a
+    // second one — the routine makes one task series per factor row.
+    const active = getDb()
+      .prepare('SELECT id FROM risk_factors WHERE factor = ? AND recur_until >= ? ORDER BY id DESC')
+      .get(factor.label, now) as { id: number } | undefined
+    if (active) {
+      getDb().prepare('UPDATE risk_factors SET recur_until = ? WHERE id = ?').run(until, active.id)
+    } else {
+      getDb()
+        .prepare('INSERT INTO risk_factors (factor, created_at, recur_until) VALUES (?, ?, ?)')
+        .run(factor.label, now, until)
+    }
   }
 
   return logs.create({ source: 'risk_factor', riskFactor: factor.label })

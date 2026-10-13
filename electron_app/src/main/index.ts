@@ -6,6 +6,8 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { startSessionManager, stopSessionManager } from './session-manager'
 import { startMonitoring, stopMonitoring } from './monitoring'
 import { registerIpc } from './ipc'
+import { startDayChange } from './dayChange'
+import { startReminders } from './reminders'
 import { seedDevFixtures } from './seed'
 import { setMainWindow } from './window'
 import { handleDistraction } from './distraction'
@@ -19,6 +21,9 @@ function createWindow(): void {
     // resizable app window once the cold-start splash transitions to Home.
     width: 1100,
     height: 700,
+    // Size the web content, not the outer frame: the splash is a fixed 1100x700 card, and with
+    // the frame included the content area was ~40px shorter and clipped it (D12).
+    useContentSize: true,
     resizable: false,
     maximizable: false,
     title: 'Momentum',
@@ -67,6 +72,11 @@ app.whenReady().then(() => {
   // has data to read on first launch. Dev-only — never runs in a packaged build.
   if (is.dev) seedDevFixtures()
   registerIpc()
+  // Daily task routine (carry-over, series days) for today, then the midnight / wake re-runs;
+  // reminder toasts armed for the next reminder_time. Both before the window so Home loads the
+  // day's final task list.
+  startDayChange()
+  startReminders()
 
   createWindow()
   startSessionManager({ onDistraction: handleDistraction })

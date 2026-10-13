@@ -2,19 +2,21 @@
 // Owns: cold-start splash boot, the sidebar + main-content routing (state-based; no router dep),
 // and the two app-wide overlays (the "Feeling distracted?" nudge and the full-screen Procrastination
 // Log flow). The nudge opens either from the sidebar or when the main process pushes a
-// DistractionEvent (threshold crossed). Screens are content-only <main> panels rendered in the
-// grid's second column.
+// DistractionEvent (threshold crossed). Two more main-process pushes land here: push:dayChanged
+// (the daily task routine ran → dayKey bumps so task views refetch) and push:openTask (a reminder
+// toast was clicked → Calendar opens on that task). Screens are content-only <main> panels
+// rendered in the grid's second column.
 import { useEffect, useRef, useState } from 'react'
-import type { DistractionEvent, LogSource } from '../../shared/types'
+import type { DistractionEvent, LogSource, OpenTaskEvent } from '../../shared/types'
 import { Sidebar, type NavId } from './components/Sidebar'
 import { Nudge } from './components/Nudge'
 import Splash from './screens/Splash'
 import Home from './screens/Home'
-import Session from './screens/Session'
+import Trends from './screens/Trends'
+import Calendar from './screens/Calendar'
 import RiskFactors from './screens/RiskFactors'
 import Logs from './screens/Logs'
 import ProcrastinationLog from './screens/ProcrastinationLog'
-import Placeholder from './screens/Placeholder'
 import Settings from './screens/Settings'
 import { api } from './lib/api'
 import { useAsync } from './lib/useAsync'
@@ -34,10 +36,25 @@ function App(): React.JSX.Element {
   // The event that opened the nudge; null when opened manually from the sidebar (generic copy).
   const [distraction, setDistraction] = useState<DistractionEvent | null>(null)
   const [logFlow, setLogFlow] = useState<LogFlowState>({ open: false })
+  // Bumped when the main process reports the daily routine ran; task views depend on it to refetch.
+  const [dayKey, setDayKey] = useState(0)
+  // The task a reminder toast asked to open; Calendar highlights it.
+  const [calendarFocus, setCalendarFocus] = useState<OpenTaskEvent | null>(null)
 
-  // Sidebar daily badge = incomplete daily count; refetched on navigation and when the log flow closes.
-  const daily = useAsync(() => api.tasks.listDaily(), [view, logFlow.open])
+  // Sidebar daily badge = incomplete daily count; refetched on navigation, when the log flow
+  // closes, and on a day change.
+  const daily = useAsync(() => api.tasks.listDaily(), [view, logFlow.open, dayKey])
   const incomplete = (daily.data ?? []).filter((t) => !t.completed).length
+
+  useEffect(() => api.events.onDayChanged(() => setDayKey((k) => k + 1)), [])
+  useEffect(
+    () =>
+      api.events.onOpenTask((e) => {
+        setCalendarFocus(e)
+        setView('calendar')
+      }),
+    []
+  )
 
   // Main-process push: a distraction threshold was crossed → open the nudge with that event.
   // onDistraction returns its unsubscribe, which doubles as the effect cleanup. The handler reads
@@ -93,13 +110,15 @@ function App(): React.JSX.Element {
       <div className="grid h-screen grid-cols-[264px_1fr] overflow-hidden bg-paper">
         <Sidebar active={view} dailyBadge={incomplete} onNavigate={navigate} />
 
-        {view === 'daily' && <Home onNewLog={() => openLog()} />}
-        {(view === 'session' || view === 'trends') && <Session />}
+        {view === 'daily' && (
+          <Home onNewLog={() => openLog()} onOpenTrends={() => setView('trends')} dayKey={dayKey} />
+        )}
+        {view === 'trends' && <Trends />}
         {view === 'logs' && (
           <Logs onOpenLog={(logId) => openLog({ logId })} logFlowOpen={logFlow.open} />
         )}
         {view === 'risk' && <RiskFactors onOpenLog={(logId) => openLog({ logId })} />}
-        {view === 'calendar' && <Placeholder title="Calendar" note="Coming in a later version." />}
+        {view === 'calendar' && <Calendar focus={calendarFocus} dayKey={dayKey} />}
         {view === 'settings' && <Settings />}
 
         {nudgeOpen && (

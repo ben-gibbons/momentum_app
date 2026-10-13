@@ -32,7 +32,7 @@ export function TaskRow({
         <div className="flex min-w-0 flex-1 items-start gap-[14px]">
           <button
             aria-label={task.completed ? 'Mark incomplete' : 'Mark complete'}
-            onClick={() => onToggle(task.id)}
+            onClick={() => task.id != null && onToggle(task.id)}
             className={`mt-px flex h-[21px] w-[21px] flex-none items-center justify-center rounded-[7px] border-[1.5px] transition-colors ${
               task.completed ? 'border-green-500 bg-green-500' : 'border-sand-400'
             }`}

@@ -23,8 +23,8 @@ import { hostOf } from './classifier'
 let db: Database.Database
 
 // Create every baseline (v0) table. Idempotent: safe to call on every launch. Frozen — schema
-// changes after v0 go in MIGRATIONS below, never here.
-function initSchema(database: Database.Database): void {
+// changes after v0 go in MIGRATIONS below, never here. Exported (with migrate) only for db.test.ts.
+export function initSchema(database: Database.Database): void {
   database.exec(`
     -- Raw monitoring rows: one per contiguous foreground app/site session.
     CREATE TABLE IF NOT EXISTS sessions (
@@ -132,8 +132,12 @@ function initSchema(database: Database.Database): void {
 
 // MIGRATIONS[i] upgrades the schema from user_version i to i+1. Append only — never edit a
 // shipped step. Each step runs inside a transaction and the version bump is part of it, so a
-// failed step leaves the file untouched at its previous version.
-const MIGRATIONS: ((database: Database.Database) => void)[] = [
+// failed step leaves the file untouched at its previous version. A step that rebuilds a table
+// other tables reference is wrapped as { ownTransaction: true, run } — migrate() then turns
+// foreign-key enforcement off around its transaction (the pragma is a no-op inside one) and
+// checks every reference before the bump.
+type Step = (database: Database.Database) => void
+const MIGRATIONS: (Step | { ownTransaction: true; run: Step })[] = [
   // v0 → v1: productive/unproductive rules, sessions.host, start_time index.
   (database) => {
     database.exec(`
@@ -236,6 +240,74 @@ const MIGRATIONS: ((database: Database.Database) => void)[] = [
       ins.run('cooldown_notsure', old.value)
       database.prepare("DELETE FROM settings WHERE key = 'popup_cooldown'").run()
     }
+  },
+  // v6 → v7: rebuild `tasks` for V1 item 5 (carry-over, repeats, reminders, risk-factor tasks).
+  // SQLite can't drop a CHECK or add a column with a REFERENCES clause in place, so this is the
+  // documented 12-step rebuild: copy into tasks_new (ids preserved, so task_steps.task_id and
+  // parent_task_id still line up), drop the old table, rename. task_steps' REFERENCES tasks(id)
+  // keeps pointing at the renamed table; the runner's foreign_key_check proves it. What changes:
+  //   - category loses its fixed CHECK: free text, NULL = no category (D13; validated in TS).
+  //   - repeat_days / repeat_until: a weekly row with a non-zero weekday mask is a series (D4);
+  //     a weekly row's `date` is the series start day (A2).
+  //   - carried_from: the row a copy was carried / continued from (D1, D5, A1).
+  //   - risk_factor_id: the risk factor a series was generated from (D9).
+  //   - Completion now lives on every daily row (D3) — the weekly row shows "N of target" from
+  //     its dailies — so a daily whose weekly parent was already done is backfilled as done.
+  // Indexes cover the per-day / per-week lists, the parent join, the "already carried" EXISTS,
+  // and the next-reminder lookup.
+  {
+    ownTransaction: true,
+    run: (database) => {
+      const cols = database.pragma('table_info(tasks)') as { name: string }[]
+      if (!cols.some((c) => c.name === 'repeat_days')) {
+        // A leftover tasks_new from an aborted attempt would make the CREATE fail: the old
+        // `tasks` is still in place, so start the rebuild over.
+        database.exec(`
+          DROP TABLE IF EXISTS tasks_new;
+          CREATE TABLE tasks_new (
+            id             INTEGER PRIMARY KEY,
+            type           TEXT    NOT NULL CHECK (type IN ('weekly', 'daily')),
+            week_start     INTEGER,             -- Unix seconds, Monday of the week (weekly rows)
+            date           INTEGER,             -- daily: the day; weekly series: start day (A2)
+            parent_task_id INTEGER REFERENCES tasks(id),
+            title          TEXT    NOT NULL,
+            category       TEXT,                -- free text, NULL = none (D13); no CHECK
+            due_date       INTEGER,             -- Unix seconds
+            reminder_time  INTEGER,
+            completed      INTEGER NOT NULL DEFAULT 0,
+            completed_at   INTEGER,
+            repeat_days    INTEGER NOT NULL DEFAULT 0, -- weekday mask, weekly rows; 0 = once (D4)
+            repeat_until   INTEGER,             -- local midnight of the last day; NULL = never
+            carried_from   INTEGER REFERENCES tasks(id), -- copy → the row it was carried / continued from
+            risk_factor_id INTEGER REFERENCES risk_factors(id)
+          );
+          INSERT INTO tasks_new (id, type, week_start, date, parent_task_id, title, category,
+                                 due_date, reminder_time, completed, completed_at)
+            SELECT id, type, week_start, date, parent_task_id, title, category,
+                   due_date, reminder_time, completed, completed_at FROM tasks;
+          DROP TABLE tasks;
+          ALTER TABLE tasks_new RENAME TO tasks;
+        `)
+      }
+      database.exec(`
+        CREATE INDEX IF NOT EXISTS idx_tasks_type_date ON tasks (type, date);
+        CREATE INDEX IF NOT EXISTS idx_tasks_type_week ON tasks (type, week_start);
+        CREATE INDEX IF NOT EXISTS idx_tasks_parent    ON tasks (parent_task_id);
+        CREATE INDEX IF NOT EXISTS idx_tasks_carried   ON tasks (carried_from);
+        CREATE INDEX IF NOT EXISTS idx_tasks_reminder  ON tasks (reminder_time);
+      `)
+      // D3 backfill: a daily whose weekly parent is done was done. Takes the parent's
+      // completed_at; falls back to now for a parent that was marked done without a time.
+      database
+        .prepare(
+          `UPDATE tasks SET completed = 1,
+             completed_at = COALESCE(
+               (SELECT p.completed_at FROM tasks p WHERE p.id = tasks.parent_task_id), ?)
+           WHERE type = 'daily' AND completed = 0
+             AND parent_task_id IN (SELECT id FROM tasks WHERE type = 'weekly' AND completed = 1)`
+        )
+        .run(Math.floor(Date.now() / 1000))
+    }
   }
 ]
 
@@ -266,15 +338,35 @@ const DEFAULT_UNPRODUCTIVE: [kind: 'app' | 'site', pattern: string][] = [
 ]
 
 // Apply every migration step newer than the file's user_version, bumping it after each.
-function migrate(database: Database.Database): void {
+export function migrate(database: Database.Database): void {
   let version = database.pragma('user_version', { simple: true }) as number
   while (version < MIGRATIONS.length) {
-    const step = MIGRATIONS[version]
+    const entry = MIGRATIONS[version]
     const next = version + 1
-    database.transaction(() => {
-      step(database)
-      database.pragma(`user_version = ${next}`)
-    })()
+    if (typeof entry === 'function') {
+      database.transaction(() => {
+        entry(database)
+        database.pragma(`user_version = ${next}`)
+      })()
+    } else {
+      // PRAGMA foreign_keys is a no-op inside a transaction, so toggle it outside. With
+      // enforcement off a DROP TABLE doesn't cascade and the rebuild's dangling moment is
+      // allowed; foreign_key_check then has to come back empty before the version bump, so a
+      // reference the rebuild broke rolls the whole step back instead of shipping.
+      database.pragma('foreign_keys = OFF')
+      try {
+        database.transaction(() => {
+          entry.run(database)
+          const broken = database.pragma('foreign_key_check') as unknown[]
+          if (broken.length > 0) {
+            throw new Error(`step ${next} left ${broken.length} broken foreign key reference(s)`)
+          }
+          database.pragma(`user_version = ${next}`)
+        })()
+      } finally {
+        database.pragma('foreign_keys = ON')
+      }
+    }
     version = next
   }
 }

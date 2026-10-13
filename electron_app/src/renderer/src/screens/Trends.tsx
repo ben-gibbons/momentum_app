@@ -1,10 +1,11 @@
-// screens/Session.tsx
-// Current Session + 7-day Productivity Trends — the single screen behind both the "Current session"
-// and "Productivity Trends" nav items. Recreates design_system/interactive-flows/Session.jsx in the
-// Home.tsx exemplar style: data is read through window.api via useAsync (rendered with zeros until
-// loaded), an underline tab switches between the session summary and the week chart, and presentation
-// is split into small components in components/session/. Main-content panel only — the shared app
-// shell (sidebar + routing) is added by the lead in Phase 3.
+// screens/Trends.tsx
+// Productivity Trends — the screen behind the "Productivity Trends" nav item (the separate "Current
+// session" item was removed, D11; renamed from Session.tsx in Phase 0 of V1 items 5–7). Recreates
+// design_system/interactive-flows/Session.jsx in the Home.tsx exemplar style: data is read through
+// window.api via useAsync (rendered with zeros until loaded), an underline tab switches between the
+// session summary and the week chart, and presentation is split into small components in
+// components/session/. Agent B (Phase 1) replaces the two tabs with Today / This week / This month,
+// each with a RangeNav. Main-content panel only — App.tsx owns the shell.
 import { useState } from 'react'
 import { useAsync } from '../lib/useAsync'
 import { formatHM } from '../lib/format'
@@ -59,7 +60,7 @@ function LegendDot({ color, label }: { color: string; label: string }): React.JS
   )
 }
 
-export default function Session(): React.JSX.Element {
+export default function Trends(): React.JSX.Element {
   const [tab, setTab] = useState<Tab>('session')
   const current = useAsync(() => api.session.getCurrent(), [])
   const trends = useAsync(() => api.trends.getWeek(), [])

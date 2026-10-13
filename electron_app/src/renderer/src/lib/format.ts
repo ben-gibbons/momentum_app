@@ -42,11 +42,3 @@ export function formatStamp(secs: number): string {
   const hour = d.getHours() % 12 || 12
   return `${date} ${hour}:${p(d.getMinutes())} ${ampm}`
 }
-
-// Start-of-today in Unix seconds (local) — used when creating a daily task so it lands in
-// today's list (tasks.listDaily defaults to today).
-export function startOfTodaySecs(): number {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  return Math.floor(d.getTime() / 1000)
-}

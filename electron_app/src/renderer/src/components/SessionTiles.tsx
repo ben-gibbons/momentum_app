@@ -13,6 +13,9 @@ const RING_CIRC = 2 * Math.PI * RING_RADIUS // ≈ 150.8
 interface SessionTilesProps {
   current: SessionTotals
   focus: TodayFocus
+  // Opens Productivity Trends → Today from the "This session" tile (D11). Accepted now so the
+  // shell can thread it; Agent B wires the click.
+  onOpenTrends?: () => void
 }
 
 function StatBar({ current }: { current: SessionTotals }): React.JSX.Element {
@@ -61,6 +64,7 @@ function BreakRing({ focus }: { focus: TodayFocus }): React.JSX.Element {
   )
 }
 
+// onOpenTrends is accepted (see SessionTilesProps) but not read until Agent B wires the tile click.
 export function SessionTiles({ current, focus }: SessionTilesProps): React.JSX.Element {
   return (
     <div className="mt-5 grid grid-cols-2 gap-[18px]">

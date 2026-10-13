@@ -190,8 +190,16 @@ export function seedDevFixtures(): void {
           d.completed ? startOfDay() : null
         ).lastInsertRowid as number
       }
-      // Completion lives on the weekly parent; the daily row's own flag stays 0.
-      const res = dStmtTask.run(today, parentId, d.title, d.category, due, 0, null)
+      // Completion lives on the daily row itself (D3); the weekly parent mirrors it above.
+      const res = dStmtTask.run(
+        today,
+        parentId,
+        d.title,
+        d.category,
+        due,
+        d.completed,
+        d.completed ? today : null
+      )
       const taskId = res.lastInsertRowid as number
       const steps = STEPS[d.title]
       if (steps)
@@ -199,6 +207,14 @@ export function seedDevFixtures(): void {
           stepStmt.run(taskId, i + 1, s.text, s.mins, s.done, s.done ? today : null)
         )
     }
+
+    // One repeating series (V1 item 5) so the weekly list has a "0/N" example: a daily "Stretch"
+    // started this Monday. Only the weekly row is seeded — the daily routine (startDayChange, which
+    // runs after this seed in index.ts) generates today's and the rest of the week's daily rows.
+    db.prepare(
+      `INSERT INTO tasks (type, week_start, date, title, category, repeat_days)
+       VALUES ('weekly', ?, ?, 'Stretch', 'hobby', 127)`
+    ).run(weekStart, weekStart)
 
     // Sessions backing trends + current session.
     const todayIdx = Math.floor((today - weekStart) / DAY)
