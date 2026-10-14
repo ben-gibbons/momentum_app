@@ -21,7 +21,7 @@ try {
   open = null
 }
 
-describe.skipIf(open === null)('migrate (v0 → v7)', () => {
+describe.skipIf(open === null)('migrate (v0 → v8)', () => {
   let db: Database.Database
   const WEEK = 1_760_227_200 // some Monday midnight; the value doesn't matter
   const DAY = WEEK + 86_400
@@ -44,8 +44,17 @@ describe.skipIf(open === null)('migrate (v0 → v7)', () => {
     migrate(db)
   })
 
-  it('bumps user_version to 7', () => {
-    expect(db.pragma('user_version', { simple: true })).toBe(7)
+  it('bumps user_version to 8', () => {
+    expect(db.pragma('user_version', { simple: true })).toBe(8)
+  })
+
+  it('v8 adds created_at, backfilled from the day the row was for', () => {
+    const rows = db.prepare('SELECT id, created_at FROM tasks WHERE id <= 3 ORDER BY id').all()
+    expect(rows).toEqual([
+      { id: 1, created_at: WEEK },
+      { id: 2, created_at: DAY },
+      { id: 3, created_at: DAY }
+    ])
   })
 
   it('adds the item-5 columns and drops the category CHECK', () => {
@@ -109,7 +118,7 @@ describe.skipIf(open === null)('migrate (v0 → v7)', () => {
     const { migrate } = await import('./db')
     const before = db.prepare('SELECT COUNT(*) AS n FROM tasks').get()
     migrate(db)
-    expect(db.pragma('user_version', { simple: true })).toBe(7)
+    expect(db.pragma('user_version', { simple: true })).toBe(8)
     expect(db.prepare('SELECT COUNT(*) AS n FROM tasks').get()).toEqual(before)
   })
 })

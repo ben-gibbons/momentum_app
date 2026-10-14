@@ -2,7 +2,7 @@
 // 7-day stacked bar chart for the Productivity Trends view. One column per day: a vertical StatBar
 // (productive / unproductive / not-sure) whose height scales with that day's total minutes relative
 // to the busiest day, plus the day's rounded hour total and its label. Recreates kit.css .mm-chart*.
-// Presentational — the week of TrendDay rows comes from the Session screen.
+// Presentational — the week of TrendDay rows comes from the Trends screen.
 import type { TrendDay } from '../../../../shared/types'
 import { StatBar } from './StatBar'
 
@@ -22,7 +22,7 @@ export function TrendsChart({ week }: { week: TrendDay[] }): React.JSX.Element {
         const h = Math.round((total / max) * MAX_BAR) + 8
         return (
           // .mm-chart__col
-          <div key={d.day} className="flex flex-1 flex-col items-center gap-2">
+          <div key={d.date} className="flex flex-1 flex-col items-center gap-2">
             {/* .mm-chart__barwrap: fixed-height area, bars grow up from the baseline */}
             <div className="flex items-end" style={{ height: BARWRAP_HEIGHT }}>
               <div style={{ height: h, width: 18 }}>

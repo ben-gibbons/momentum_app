@@ -1,21 +1,147 @@
 // screens/Calendar.tsx
-// The Calendar screen (V1 item 5, D6): daily / weekly / monthly views of tasks with ‹ › arrows,
-// the weekly list with N/target counts, and the reminder deep-link highlight. Phase 0 STUB —
-// header only; Agent C fills in the views (components/calendar/*). Props are the contract:
-//   focus  — set when a reminder toast was clicked (push:openTask): select the week of e.date and
-//            highlight task e.taskId
-//   dayKey — bumped by App on push:dayChanged so the views refetch
+// The Calendar screen (V1 item 5, D6): Day / Week / Month views of tasks, each with a RangeNav
+// (‹ › + "Today"; labels always carry the year), the weekly list with N/target counts (Week view),
+// and the reminder deep-link highlight. Owns the range state, the single TaskDialog instance the
+// views open (create with a preset date / repeat mask, or edit), and a reload counter so a dialog
+// save or a day change (dayKey, from push:dayChanged) refetches whichever view is shown.
+// Props are the contract with App.tsx:
+//   focus          — set when a reminder toast was clicked (push:openTask): select the week of
+//                    e.date and highlight task e.taskId
+//   onFocusHandled — called once that focus has been applied; App clears it to null so a later
+//                    visit to Calendar doesn't replay it
+//   dayKey         — bumped by App on push:dayChanged so the views refetch
+import { useEffect, useState } from 'react'
 import type { OpenTaskEvent } from '../../../shared/types'
+import {
+  addDays,
+  addMonths,
+  startOfDay,
+  startOfMonth,
+  weekStartMonday
+} from '../../../shared/dates'
+import { RangeNav } from '../components/RangeNav'
+import { TaskDialog, type TaskDialogProps } from '../components/tasks/TaskDialog'
+import { DayView } from '../components/calendar/DayView'
+import { WeekView } from '../components/calendar/WeekView'
+import { MonthView } from '../components/calendar/MonthView'
+import { dayLabel, monthLabel, weekLabel } from '../components/calendar/shared'
 
 interface CalendarProps {
   focus: OpenTaskEvent | null
+  onFocusHandled: () => void
   dayKey: number
 }
 
-export default function Calendar(_props: CalendarProps): React.JSX.Element {
+type Tab = 'day' | 'week' | 'month'
+
+const HIGHLIGHT_MS = 4000
+
+// Underline tab — the local Tabs idiom from Trends.tsx (design-system Tabs variant="underline").
+function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }): React.JSX.Element {
+  const items: { id: Tab; label: string }[] = [
+    { id: 'day', label: 'Day' },
+    { id: 'week', label: 'Week' },
+    { id: 'month', label: 'Month' }
+  ]
+  return (
+    <div className="flex gap-[22px] border-b border-border-default" role="tablist">
+      {items.map((t) => {
+        const active = t.id === tab
+        return (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(t.id)}
+            className={`relative -mb-px py-[10px] text-[13px] font-semibold transition-colors ${
+              active
+                ? 'text-ink after:absolute after:inset-x-0 after:-bottom-px after:h-[2px] after:rounded-full after:bg-brand after:content-[""]'
+                : 'text-muted hover:text-body'
+            }`}
+          >
+            {t.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// What the dialog is open on; closed = null.
+type DialogState = Pick<TaskDialogProps, 'mode' | 'taskId' | 'initialDate' | 'initialRepeatDays'>
+
+export default function Calendar({
+  focus,
+  onFocusHandled,
+  dayKey
+}: CalendarProps): React.JSX.Element {
+  // A reminder deep-link (focus) shows that task's week with it highlighted. The toast click
+  // usually mounts this screen, so the initial state is seeded from it; a focus arriving while
+  // mounted is applied with React's "adjust state when a prop changes" pattern (setState during
+  // render, guarded by seenFocus) — the repo's react-hooks rules forbid setState inside an effect.
+  const [tab, setTab] = useState<Tab>('week')
+  const [dayStart, setDayStart] = useState(() => startOfDay())
+  const [weekStart, setWeekStart] = useState(() =>
+    focus ? weekStartMonday(focus.date) : weekStartMonday()
+  )
+  const [monthStart, setMonthStart] = useState(() => startOfMonth(startOfDay()))
+  const [highlightId, setHighlightId] = useState<number | null>(focus?.taskId ?? null)
+  const [seenFocus, setSeenFocus] = useState(focus)
+  if (focus !== seenFocus) {
+    setSeenFocus(focus)
+    if (focus) {
+      setTab('week')
+      setWeekStart(weekStartMonday(focus.date))
+      setHighlightId(focus.taskId)
+    }
+  }
+  // Hand the applied event back so App clears it and a later visit doesn't replay it.
+  useEffect(() => {
+    if (focus) onFocusHandled()
+  }, [focus, onFocusHandled])
+  // The ring fades after a few seconds.
+  useEffect(() => {
+    if (highlightId == null) return
+    const t = setTimeout(() => setHighlightId(null), HIGHLIGHT_MS)
+    return () => clearTimeout(t)
+  }, [highlightId])
+
+  const [dialog, setDialog] = useState<DialogState | null>(null)
+  // Bumped after a dialog save. dayKey and version only ever increase, so their sum changes
+  // whenever either does — one dependency for the views to refetch on.
+  const [version, setVersion] = useState(0)
+  const reloadKey = dayKey + version
+
+  function openCreate(initialDate: number, initialRepeatDays?: number): void {
+    setDialog({ mode: 'create', initialDate, initialRepeatDays })
+  }
+  function openEdit(taskId: number): void {
+    setDialog({ mode: 'edit', taskId })
+  }
+
+  function goToday(): void {
+    const today = startOfDay()
+    setDayStart(today)
+    setWeekStart(weekStartMonday(today))
+    setMonthStart(startOfMonth(today))
+  }
+  // ‹ › step one day / week / month for the shown tab.
+  function step(n: number): void {
+    if (tab === 'day') setDayStart((d) => addDays(d, n))
+    else if (tab === 'week') setWeekStart((w) => addDays(w, 7 * n))
+    else setMonthStart((m) => addMonths(m, n))
+  }
+  const label =
+    tab === 'day'
+      ? dayLabel(dayStart)
+      : tab === 'week'
+        ? weekLabel(weekStart)
+        : monthLabel(monthStart)
+
   return (
     <main className="h-screen overflow-y-auto bg-paper">
-      <div className="mx-auto max-w-[920px] px-12 pb-14 pt-9">
+      {/* Wider than the other screens (920px): the Week view needs room for seven columns. */}
+      <div className="mx-auto max-w-[1100px] px-12 pb-14 pt-9">
         {/* .mm-view__head — eyebrow + display title + calm sub-line */}
         <header className="mb-[26px]">
           <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
@@ -28,8 +154,58 @@ export default function Calendar(_props: CalendarProps): React.JSX.Element {
             Plan the week, one day at a time.
           </p>
         </header>
-        <p className="text-[15px] text-muted">Coming in Phase 1.</p>
+
+        <Tabs tab={tab} onChange={setTab} />
+        <div className="mb-5 mt-4">
+          <RangeNav
+            label={label}
+            onPrev={() => step(-1)}
+            onNext={() => step(1)}
+            onToday={goToday}
+          />
+        </div>
+
+        {tab === 'day' && (
+          <DayView
+            dayStart={dayStart}
+            reloadKey={reloadKey}
+            onEdit={openEdit}
+            onCreate={openCreate}
+          />
+        )}
+        {tab === 'week' && (
+          <WeekView
+            weekStart={weekStart}
+            reloadKey={reloadKey}
+            highlightId={highlightId}
+            onEdit={openEdit}
+            onCreate={openCreate}
+          />
+        )}
+        {tab === 'month' && (
+          <MonthView
+            monthStart={monthStart}
+            reloadKey={reloadKey}
+            onSelectDay={(day) => {
+              setDayStart(day)
+              setTab('day')
+            }}
+          />
+        )}
       </div>
+
+      <TaskDialog
+        open={dialog != null}
+        mode={dialog?.mode ?? 'create'}
+        taskId={dialog?.taskId}
+        initialDate={dialog?.initialDate}
+        initialRepeatDays={dialog?.initialRepeatDays}
+        onClose={() => setDialog(null)}
+        onSaved={() => {
+          setDialog(null)
+          setVersion((v) => v + 1)
+        }}
+      />
     </main>
   )
 }

@@ -164,7 +164,8 @@ describe.skipIf(!loadable)('runDailyRoutine', () => {
     expect(thisWeek).toHaveLength(1)
     expect(thisWeek[0]).toMatchObject({
       title: 'Last week',
-      carried: false,
+      carried: true, // this row is the copy
+      carriedTo: null,
       target: 1,
       doneCount: 0
     })
@@ -176,7 +177,10 @@ describe.skipIf(!loadable)('runDailyRoutine', () => {
     expect(tasks.get(copy.id)!.steps).toEqual([
       expect.objectContaining({ text: 'S1', completed: true })
     ])
-    expect(tasks.listWeekly(LAST_MON).find((t) => t.id === old)).toMatchObject({ carried: true })
+    expect(tasks.listWeekly(LAST_MON).find((t) => t.id === old)).toMatchObject({
+      carried: false,
+      carriedTo: MON // the original says where it went
+    })
 
     // A daily of the carried weekly is re-parented onto the copy.
     const d = daily({ date: YESTERDAY, parent_task_id: old, title: 'Last week' })
@@ -216,7 +220,8 @@ describe.skipIf(!loadable)('runDailyRoutine', () => {
       startsOn: null,
       target: 2,
       doneCount: 0,
-      carried: false // a continuation is not a carry-over
+      carried: false, // a continuation is not a carry-over
+      carriedTo: null
     })
     const s1 = thisWeek[0].id
     expect(db.prepare('SELECT carried_from FROM tasks WHERE id = ?').get(s1)).toEqual({
@@ -291,10 +296,12 @@ describe.skipIf(!loadable)('runDailyRoutine', () => {
     // remove() judges "unfinished from today" by the real clock; whichever side of 2026-10-14
     // that falls, nothing may be continued or generated afterwards.
     tasks.remove(s1)
-    const pred = db.prepare('SELECT repeat_until FROM tasks WHERE id = ?').get(s0) as {
-      repeat_until: number
-    }
-    expect(pred.repeat_until).toBeLessThanOrEqual(addDays(MON, -1))
+    // The predecessor had no history, so the chain delete takes it too; if it did survive, it
+    // must be ended before this week.
+    const pred = db.prepare('SELECT repeat_until FROM tasks WHERE id = ?').get(s0) as
+      | { repeat_until: number }
+      | undefined
+    if (pred) expect(pred.repeat_until).toBeLessThanOrEqual(addDays(MON, -1))
     const weeklies = count("type = 'weekly'")
     const dailies = count("type = 'daily'")
     db.exec('DELETE FROM settings')
@@ -303,43 +310,42 @@ describe.skipIf(!loadable)('runDailyRoutine', () => {
     expect(count("type = 'daily'")).toBe(dailies)
   })
 
-  it('re-selecting an active risk factor extends it instead of adding a second series', async () => {
-    const riskFactors = await import('./repositories/riskFactors')
-    const catalogId = db
-      .prepare("INSERT INTO risk_factor_catalog (label, is_custom) VALUES ('Sleep', 0)")
-      .run().lastInsertRowid as number
-    riskFactors.select(catalogId, true)
-    const first = db.prepare('SELECT id, recur_until FROM risk_factors').get() as {
-      id: number
-      recur_until: number
-    }
-    routine.runDailyRoutine(TODAY)
-    riskFactors.select(catalogId, true)
-    const rows = db.prepare('SELECT id, recur_until FROM risk_factors').all() as (typeof first)[]
-    expect(rows).toHaveLength(1)
-    expect(rows[0].id).toBe(first.id)
-    expect(rows[0].recur_until).toBeGreaterThanOrEqual(first.recur_until)
-    db.exec('DELETE FROM settings')
-    routine.runDailyRoutine(TODAY)
-    const series = tasks.listWeekly(MON)
-    expect(series).toHaveLength(1)
-    expect(series[0]).toMatchObject({
-      riskFactor: 'Sleep',
-      repeatUntil: Math.floor(new Date(rows[0].recur_until * 1000).setHours(0, 0, 0, 0) / 1000)
-    })
-  })
+  // Re-selection (riskFactors.select) works off the real clock; it is covered in
+  // repositories/tasks.test.ts, which runs against the real today.
 
   it('makes one series per factor label even with duplicate risk_factors rows', () => {
     const ins = db.prepare(
       'INSERT INTO risk_factors (factor, created_at, recur_until) VALUES (?, ?, ?)'
     )
-    ins.run('Sleep', LAST_MON, TODAY + 5 * 86400)
-    const later = ins.run('Sleep', TODAY, TODAY + 13 * 86400).lastInsertRowid as number
+    const first = ins.run('Sleep', LAST_MON, TODAY + 5 * 86400).lastInsertRowid as number
+    ins.run('Sleep', TODAY, TODAY + 13 * 86400)
     routine.runDailyRoutine(TODAY)
     const series = db
       .prepare("SELECT risk_factor_id, repeat_until FROM tasks WHERE type = 'weekly'")
       .all()
-    expect(series).toEqual([{ risk_factor_id: later, repeat_until: addDays(TODAY, 13) }])
+    // The first row's series stands; the routine never rewrites an existing series' end.
+    expect(series).toEqual([{ risk_factor_id: first, repeat_until: addDays(TODAY, 5) }])
     expect(count("type = 'daily'")).toBe(5)
+  })
+
+  it('never resurrects a risk-factor series the user deleted or stopped', () => {
+    db.prepare('INSERT INTO risk_factors (factor, created_at, recur_until) VALUES (?, ?, ?)').run(
+      'Sleep',
+      TODAY,
+      TODAY + 13 * 86400
+    )
+    routine.runDailyRoutine(TODAY)
+    const series = tasks.listWeekly(MON)[0].id
+    // "Stop repeating" at this Sunday: the end stays put and nothing new appears next week.
+    tasks.update(series, { repeatUntil: SUN })
+    db.exec('DELETE FROM settings')
+    routine.runDailyRoutine(addDays(TODAY, 1))
+    expect(db.prepare('SELECT repeat_until FROM tasks WHERE id = ?').get(series)).toEqual({
+      repeat_until: SUN
+    })
+    db.exec('DELETE FROM settings')
+    routine.runDailyRoutine(addDays(MON, 7))
+    expect(count("type = 'weekly'")).toBe(1)
+    expect(count("type = 'daily' AND date >= ?", addDays(MON, 7))).toBe(0)
   })
 })

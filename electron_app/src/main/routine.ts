@@ -23,7 +23,7 @@ export function runDailyRoutine(today: number = startOfDay()): boolean {
   const thisWeek = weekStartMonday(today)
   getDb().transaction(() => {
     tasks.continueSeries(thisWeek)
-    tasks.ensureRiskFactorSeries(today, thisWeek)
+    tasks.ensureRiskFactorSeries(today)
     tasks.carryWeeklies(thisWeek)
     tasks.carryDailies(today, thisWeek)
     tasks.generateThisWeek(today, thisWeek)

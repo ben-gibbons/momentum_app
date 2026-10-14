@@ -4,8 +4,9 @@
 // (recur_until = 14 days out) that the morning routine reads to create recurring daily tasks.
 import { getDb } from '../db'
 import type { RiskFactorCatalogItem } from '../../shared/types'
-import { nowSecs } from './util'
+import { nowSecs, startOfDay } from './util'
 import * as logs from './logs'
+import * as tasks from './tasks'
 
 const RECUR_DAYS = 14
 
@@ -42,17 +43,27 @@ export function select(catalogId: number, recur = false): number {
     const now = nowSecs()
     const until = now + RECUR_DAYS * 86400
     // Re-selecting a factor that is still active extends its window rather than starting a
-    // second one — the routine makes one task series per factor row.
+    // second one — there is one task series per factor (tasks.ensureRiskFactorSeries).
     const active = getDb()
-      .prepare('SELECT id FROM risk_factors WHERE factor = ? AND recur_until >= ? ORDER BY id DESC')
-      .get(factor.label, now) as { id: number } | undefined
+      .prepare(
+        'SELECT id, recur_until FROM risk_factors WHERE factor = ? AND recur_until >= ? ORDER BY id DESC'
+      )
+      .get(factor.label, now) as { id: number; recur_until: number } | undefined
+    let rowId: number
     if (active) {
       getDb().prepare('UPDATE risk_factors SET recur_until = ? WHERE id = ?').run(until, active.id)
+      rowId = active.id
     } else {
-      getDb()
+      rowId = getDb()
         .prepare('INSERT INTO risk_factors (factor, created_at, recur_until) VALUES (?, ?, ?)')
-        .run(factor.label, now, until)
+        .run(factor.label, now, until).lastInsertRowid as number
     }
+    // The task series follows the new window (or restarts today if the user had ended it).
+    tasks.reselectRiskFactorSeries(
+      { id: rowId, factor: factor.label },
+      active ? startOfDay(active.recur_until) : null,
+      startOfDay(until)
+    )
   }
 
   return logs.create({ source: 'risk_factor', riskFactor: factor.label })

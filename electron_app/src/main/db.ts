@@ -308,6 +308,15 @@ const MIGRATIONS: (Step | { ownTransaction: true; run: Step })[] = [
         )
         .run(Math.floor(Date.now() / 1000))
     }
+  },
+  // v7 → v8: tasks.created_at — when the task was first written, shown as "Created on" in the
+  // edit dialog (a carried-over task keeps its original's). Existing rows take the day they were
+  // for (date, else week_start) since nothing better was recorded; rows older than that stay NULL.
+  (database) => {
+    database.exec(`
+      ALTER TABLE tasks ADD COLUMN created_at INTEGER;
+      UPDATE tasks SET created_at = COALESCE(date, week_start);
+    `)
   }
 ]
 

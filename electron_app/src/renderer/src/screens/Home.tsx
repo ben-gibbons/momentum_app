@@ -2,10 +2,13 @@
 // The Daily Tasks home screen (the approved design, source of truth) and the EXEMPLAR every other
 // screen follows: data is read through window.api with useAsync; mutations call the api then
 // reload(); presentation is split into small components; styling uses the design tokens. Owns the
-// full shell (sidebar + scrolling main) for now — Phase 3 extracts the shell + routing.
+// TaskDialog (create for today from the add row, edit from a task title) and reloads the list
+// when it saves. Content-only — the app shell in App.tsx owns the sidebar + routing.
+import { useState } from 'react'
 import { Hero } from '../components/Hero'
 import { TodayCard } from '../components/TodayCard'
 import { SessionTiles } from '../components/SessionTiles'
+import { TaskDialog } from '../components/tasks/TaskDialog'
 import { useAsync } from '../lib/useAsync'
 import { api } from '../lib/api'
 import type { SessionTotals, TodayFocus } from '../../../shared/types'
@@ -18,7 +21,9 @@ const ZERO_FOCUS: TodayFocus = {
   breakTargetMinutes: 50
 }
 
-// The Daily Tasks home screen. Content-only (the app shell in App.tsx owns the sidebar + routing).
+// Which dialog is open: a new task for today, or an existing row being edited.
+type DialogState = { mode: 'create' } | { mode: 'edit'; taskId: number } | null
+
 interface HomeProps {
   onNewLog?: () => void
   onOpenTrends?: () => void // "This session" tile → Productivity Trends
@@ -30,6 +35,7 @@ export default function Home({ onNewLog, onOpenTrends, dayKey }: HomeProps): Rea
   const current = useAsync(() => api.session.getCurrent(), [dayKey])
   const focus = useAsync(() => api.session.getTodayFocus(), [dayKey])
   const userName = useAsync(() => api.settings.get('user_name'), [])
+  const [dialog, setDialog] = useState<DialogState>(null)
 
   const dailyTasks = tasks.data ?? []
   const incomplete = dailyTasks.filter((t) => !t.completed).length
@@ -40,10 +46,6 @@ export default function Home({ onNewLog, onOpenTrends, dayKey }: HomeProps): Rea
   }
   async function toggleStep(stepId: number): Promise<void> {
     await api.taskSteps.toggle(stepId)
-    tasks.reload()
-  }
-  async function addTask(title: string): Promise<void> {
-    await api.tasks.create({ type: 'daily', title, date: startOfDay() })
     tasks.reload()
   }
 
@@ -60,7 +62,8 @@ export default function Home({ onNewLog, onOpenTrends, dayKey }: HomeProps): Rea
           tasks={dailyTasks}
           onToggleTask={toggleTask}
           onToggleStep={toggleStep}
-          onAddTask={addTask}
+          onAddTask={() => setDialog({ mode: 'create' })}
+          onEditTask={(taskId) => setDialog({ mode: 'edit', taskId })}
         />
         <SessionTiles
           current={current.data ?? ZERO_SESSION}
@@ -68,6 +71,14 @@ export default function Home({ onNewLog, onOpenTrends, dayKey }: HomeProps): Rea
           onOpenTrends={onOpenTrends}
         />
       </div>
+      <TaskDialog
+        open={dialog != null}
+        mode={dialog?.mode ?? 'create'}
+        taskId={dialog?.mode === 'edit' ? dialog.taskId : undefined}
+        initialDate={startOfDay()}
+        onClose={() => setDialog(null)}
+        onSaved={tasks.reload}
+      />
     </main>
   )
 }

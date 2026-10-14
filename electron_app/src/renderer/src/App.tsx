@@ -118,7 +118,13 @@ function App(): React.JSX.Element {
           <Logs onOpenLog={(logId) => openLog({ logId })} logFlowOpen={logFlow.open} />
         )}
         {view === 'risk' && <RiskFactors onOpenLog={(logId) => openLog({ logId })} />}
-        {view === 'calendar' && <Calendar focus={calendarFocus} dayKey={dayKey} />}
+        {view === 'calendar' && (
+          <Calendar
+            focus={calendarFocus}
+            onFocusHandled={() => setCalendarFocus(null)}
+            dayKey={dayKey}
+          />
+        )}
         {view === 'settings' && <Settings />}
 
         {nudgeOpen && (

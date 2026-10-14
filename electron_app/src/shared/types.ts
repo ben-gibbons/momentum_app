@@ -40,8 +40,10 @@ export interface DailyTask {
   projected: boolean
 }
 
-// A weekly row. For a series, target = occurrences this week and doneCount = completed dailies;
-// a single-entry task has target 1.
+// A weekly row. For a series, target = occurrences this week and doneCount = completed dailies.
+// A single-entry task has target 1; several dailies can hang off it (addToDaily), so doneCount
+// may exceed target. completed = doneCount >= target with no daily still open, recomputed on
+// every daily change (a new unticked day reopens a done weekly).
 export interface WeeklyTask {
   id: number
   title: string
@@ -53,7 +55,9 @@ export interface WeeklyTask {
   repeatUntil: number | null // local midnight of the last day; null = until stopped
   startsOn: number | null // series start day (the dialog date)
   riskFactor: string | null
-  carried: boolean // a single-entry weekly copied into a later week
+  carried: boolean // this row is a copy of an earlier week's single-entry weekly ("Carried over")
+  carriedTo: number | null // the week_start of the copy made from this row ("Carried to …")
+  scheduled: boolean // has a day (a live daily); "Add to a day" is offered only without one
 }
 
 export interface TaskStepInput {
@@ -76,9 +80,12 @@ export interface TaskInput {
   steps?: TaskStepInput[]
 }
 
-// Fields the edit dialog can change. Repeat fields only apply to a series (weekly) row; `date`
-// only to a single-entry daily (moves it, due / reminder times following; ignored on series days
-// and weeklies); steps replaces the list (steps with an id are kept with their completion state).
+// Fields the edit dialog can change. Repeat fields only apply to a series (weekly) row and reach
+// every week of the series; repeatDays 0 on a series is "Stop repeating" (it becomes a one-off
+// task). `date` moves a single-entry daily (due / reminder times following), moves a single-entry
+// weekly's day (or schedules one when it had none), moves a series' start, or moves one day of
+// a series (the old day stays as a superseded slot, like a carried-over original). steps
+// replaces the list (steps with an id are kept with their completion state).
 export interface TaskPatch {
   title?: string
   category?: Category | null
@@ -90,10 +97,14 @@ export interface TaskPatch {
   steps?: TaskStepInput[]
 }
 
-// One task row in full (edit dialog, reminder deep-link). For a daily, the repeat fields are its
-// parent's so the dialog knows it belongs to a series: a daily with repeatDays != 0 is a series
-// day — it cannot be deleted on its own (tasks.remove throws), so the dialog offers "Stop
-// repeating" / "Delete series" instead of Delete.
+// One task row in full (edit dialog, reminder deep-link). tasks.get on a single-entry weekly
+// that has a day returns that daily instead (the dialog edits the task, not its mirror), so a
+// weekly here is either a series (date = its start) or an unscheduled single-entry one (date
+// null). For a daily, the repeat fields are its parent's so the dialog knows it belongs to a
+// series: a daily with repeatDays != 0 is a series day — it cannot be deleted on its own
+// (tasks.remove throws), so the dialog offers no Delete for it. createdAt is when the task was
+// first written (a carried-over copy keeps its original's); null only on rows older than that
+// column.
 export interface TaskDetail {
   id: number
   type: 'weekly' | 'daily'
@@ -110,6 +121,7 @@ export interface TaskDetail {
   startsOn: number | null
   riskFactor: string | null
   carriedFrom: number | null
+  createdAt: number | null
   steps: TaskStep[]
 }
 

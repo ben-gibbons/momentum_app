@@ -87,16 +87,18 @@ describe('seriesActiveInWeek', () => {
 })
 
 describe('projectedDays', () => {
-  it('skips the series own week and stops at repeat_until', () => {
+  it('covers the series own week onwards and stops at repeat_until', () => {
     // Mon+Thu, ending on the Tuesday of the week after next.
     const s = series({ repeatDays: MON_BIT | THU_BIT, repeatUntil: addDays(NEXT_MON, 8) })
     expect(projectedDays(s, MON, addDays(MON, 28))).toEqual([
+      MON,
+      addDays(MON, 3),
       NEXT_MON,
       addDays(NEXT_MON, 3),
       addDays(NEXT_MON, 7)
     ])
   })
-  it('clips to the [from, to) range and ignores startsOn in later weeks', () => {
+  it('clips to the [from, to) range; startsOn applies only in the series own week', () => {
     const s = series({ startsOn: WED })
     const from = addDays(NEXT_MON, 5) // next Saturday
     expect(projectedDays(s, from, addDays(NEXT_MON, 9))).toEqual([
@@ -105,7 +107,10 @@ describe('projectedDays', () => {
       addDays(from, 2),
       addDays(from, 3)
     ])
-    expect(projectedDays(s, MON, NEXT_MON)).toEqual([])
+    expect(projectedDays(s, MON, NEXT_MON)).toEqual([2, 3, 4, 5, 6].map((i) => addDays(MON, i)))
+    expect(projectedDays(s, addDays(MON, 4), NEXT_MON)).toEqual(
+      [4, 5, 6].map((i) => addDays(MON, i))
+    )
   })
 })
 

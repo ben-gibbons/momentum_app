@@ -59,16 +59,18 @@ export function seriesActiveInWeek(s: SeriesRow, weekStart: number): boolean {
   return s.repeatUntil == null || s.repeatUntil >= weekStart
 }
 
-// Occurrences in [from, to) in the weeks *after* s.weekStart — the read-only rows a Calendar
-// range shows beyond the latest week that has real rows (D15). s's own week is excluded because
-// its occurrences are (or will be) real rows.
+// Occurrences in [from, to) from s.weekStart's week on — the read-only rows a Calendar range
+// shows for days that have no real row yet (D15). The caller drops the days that do have one
+// (s's own week is normally real rows; it is included for a series whose week hasn't started).
+// startsOn only applies in s's own week.
 export function projectedDays(s: SeriesRow, from: number, to: number): number[] {
   const out: number[] = []
-  // Start at whichever is later: the week after s's week, or the week containing `from`.
-  const firstWeek = Math.max(addDays(s.weekStart, 7), weekStartMonday(from))
+  // Start at whichever is later: s's week, or the week containing `from`.
+  const firstWeek = Math.max(s.weekStart, weekStartMonday(from))
   for (let ws = firstWeek; ws < to; ws = addDays(ws, 7)) {
     if (!seriesActiveInWeek(s, ws)) break
-    for (const d of seriesDays({ ...s, weekStart: ws, startsOn: null })) {
+    const week = ws === s.weekStart ? s : { ...s, weekStart: ws, startsOn: null }
+    for (const d of seriesDays(week)) {
       if (d >= from && d < to) out.push(d)
     }
   }
