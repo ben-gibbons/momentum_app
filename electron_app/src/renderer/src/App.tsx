@@ -1,5 +1,6 @@
 // App.tsx — the application shell.
-// Owns: cold-start splash boot, the sidebar + main-content routing (state-based; no router dep),
+// Owns: the sidebar + main-content routing (state-based; no router dep) — the cold-start splash
+// is its own page (splash.html) that the main process shows before this one —
 // and the two app-wide overlays (the "Feeling distracted?" nudge and the full-screen Procrastination
 // Log flow). The nudge opens either from the sidebar or when the main process pushes a
 // DistractionEvent (threshold crossed). Two more main-process pushes land here: push:dayChanged
@@ -10,7 +11,6 @@ import { useEffect, useRef, useState } from 'react'
 import type { DistractionEvent, LogSource, OpenTaskEvent } from '../../shared/types'
 import { Sidebar, type NavId } from './components/Sidebar'
 import { Nudge } from './components/Nudge'
-import Splash from './screens/Splash'
 import Home from './screens/Home'
 import Trends from './screens/Trends'
 import Calendar from './screens/Calendar'
@@ -30,7 +30,6 @@ interface LogFlowState {
 }
 
 function App(): React.JSX.Element {
-  const [booting, setBooting] = useState(true)
   const [view, setView] = useState<NavId>('daily')
   const [nudgeOpen, setNudgeOpen] = useState(false)
   // The event that opened the nudge; null when opened manually from the sidebar (generic copy).
@@ -76,15 +75,6 @@ function App(): React.JSX.Element {
     []
   )
 
-  // Cold-start: show the splash, then grow the window into the app and reveal it.
-  async function finishSplash(): Promise<void> {
-    try {
-      await api.app.splashDone()
-    } finally {
-      setBooting(false)
-    }
-  }
-
   function navigate(id: NavId): void {
     // "Feeling distracted?" opens the nudge over the current view rather than navigating. No event
     // → generic copy.
@@ -100,8 +90,6 @@ function App(): React.JSX.Element {
     setNudgeOpen(false)
     setLogFlow({ open: true, ...opts })
   }
-
-  if (booting) return <Splash onDone={finishSplash} />
 
   // TimersProvider wraps the whole shell so timers started in the log overlay outlive it and show
   // on Home.

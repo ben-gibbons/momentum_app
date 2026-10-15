@@ -140,8 +140,9 @@ export default function Calendar({
 
   return (
     <main className="h-screen overflow-y-auto bg-paper">
-      {/* Wider than the other screens (920px): the Week view needs room for seven columns. */}
-      <div className="mx-auto max-w-[1100px] px-12 pb-14 pt-9">
+      {/* Much wider than the other screens (920px) so the Week / Month grids get room, but still
+          with the same 48px gutters at the window edges (AP1). */}
+      <div className="mx-auto max-w-[1480px] px-12 pb-14 pt-9">
         {/* .mm-view__head — eyebrow + display title + calm sub-line */}
         <header className="mb-[26px]">
           <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
@@ -156,7 +157,8 @@ export default function Calendar({
         </header>
 
         <Tabs tab={tab} onChange={setTab} />
-        <div className="mb-5 mt-4">
+        {/* Arrows, range label and Today centered over the calendar (AP2). */}
+        <div className="mb-5 mt-4 flex justify-center">
           <RangeNav
             label={label}
             onPrev={() => step(-1)}
@@ -190,6 +192,7 @@ export default function Calendar({
               setDayStart(day)
               setTab('day')
             }}
+            onEdit={openEdit}
           />
         )}
       </div>

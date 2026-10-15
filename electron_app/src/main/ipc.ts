@@ -20,6 +20,7 @@ import { notify } from './notify'
 import { raiseDistraction } from './distraction'
 import { setMonitoringEnabled } from './monitoring'
 import { rearm } from './reminders'
+import { loadPage } from './window'
 
 // A task mutation may add, move, or clear a reminder: re-read the next one after it.
 function thenRearm<T>(result: T): T {
@@ -57,8 +58,8 @@ export function registerIpc(): void {
   ipcMain.handle('session:getTodayFocus', () => sessions.getTodayFocus())
   ipcMain.handle('trends:getWeek', (_e, weekStart?: number) => sessions.getWeek(weekStart))
   ipcMain.handle('trends:getDay', (_e, dayStart: number) => sessions.getDay(dayStart))
-  ipcMain.handle('trends:getDayBreakdown', (_e, dayStart: number) =>
-    sessions.getDayBreakdown(dayStart)
+  ipcMain.handle('trends:getBreakdown', (_e, from: number, to: number) =>
+    sessions.getBreakdown(from, to)
   )
   ipcMain.handle('trends:getMonth', (_e, monthStart: number) => sessions.getMonth(monthStart))
 
@@ -98,7 +99,8 @@ export function registerIpc(): void {
   // The renderer shows the nudge for a pushed DistractionEvent, then asks for the window + toast.
   ipcMain.handle('app:raiseDistraction', (_e, event: DistractionEvent) => raiseDistraction(event))
 
-  // App window: grow the 1100x700 splash window into the resizable app window.
+  // App window: called by the splash page after its animation — grow the 1100x700 splash window
+  // into the resizable app window and load the app page in it.
   ipcMain.handle('app:splashDone', (e) => {
     const win = BrowserWindow.fromWebContents(e.sender)
     if (!win) return
@@ -108,5 +110,6 @@ export function registerIpc(): void {
     win.setMinimumSize(1024, 720)
     win.setSize(APP_WIDTH, APP_HEIGHT)
     win.center()
+    loadPage(win, 'index')
   })
 }

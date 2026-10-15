@@ -169,7 +169,7 @@ export interface BreakdownItem {
   minutes: number
 }
 
-export interface DayBreakdown {
+export interface Breakdown {
   productive: BreakdownItem[]
   unproductive: BreakdownItem[]
   notsure: BreakdownItem[]
@@ -332,7 +332,7 @@ export interface MomentumApi {
   trends: {
     getWeek(weekStart?: number): Promise<TrendDay[]>
     getDay(dayStart: number): Promise<SessionTotals>
-    getDayBreakdown(dayStart: number): Promise<DayBreakdown>
+    getBreakdown(from: number, to: number): Promise<Breakdown> // ranked apps / sites in [from, to)
     getMonth(monthStart: number): Promise<TrendWeek[]>
   }
   logs: {

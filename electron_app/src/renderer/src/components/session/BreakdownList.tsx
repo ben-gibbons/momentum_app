@@ -1,7 +1,7 @@
 // components/session/BreakdownList.tsx
 // One "most time" card on the Productivity Trends → Today tab: the apps and sites that accrued
 // time under a single classification (Productive / Unproductive / Not sure), ranked by minutes as
-// the repository returns them (trends.getDayBreakdown, D11). Rows follow the Settings "Not sure
+// the repository returns them (trends.getBreakdown, D11 / AP6). Rows follow the Settings "Not sure
 // yet" idiom (NotSureList): kind pill, label, formatted minutes. Long lists are cut at TOP_N with
 // a "Show all" toggle. Presentational — the screen owns the data and the day.
 import { useState } from 'react'

@@ -9,7 +9,7 @@ import { registerIpc } from './ipc'
 import { startDayChange } from './dayChange'
 import { startReminders } from './reminders'
 import { seedDevFixtures } from './seed'
-import { setMainWindow } from './window'
+import { loadPage, setMainWindow } from './window'
 import { handleDistraction } from './distraction'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -26,6 +26,9 @@ function createWindow(): void {
     useContentSize: true,
     resizable: false,
     maximizable: false,
+    // The splash field's edge colour: shown behind both pages while they load, so the switch from
+    // splash.html to index.html never flashes white.
+    backgroundColor: '#234032',
     title: 'Momentum',
     show: false,
     autoHideMenuBar: true,
@@ -50,11 +53,8 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    win.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    win.loadFile(join(__dirname, '../renderer/index.html'))
-  }
+  // The cold-start splash page first; its script calls app:splashDone, which loads the app page.
+  loadPage(win, 'splash')
 }
 
 app.whenReady().then(() => {

@@ -1,13 +1,15 @@
 // components/session/TrendsChart.tsx
 // 7-day stacked bar chart for the Productivity Trends view. One column per day: a vertical StatBar
 // (productive / unproductive / not-sure) whose height scales with that day's total minutes relative
-// to the busiest day, plus the day's rounded hour total and its label. Recreates kit.css .mm-chart*.
+// to the busiest day, plus "productive / total" as hours and minutes (AP5) and the day label.
+// Recreates kit.css .mm-chart* with a taller, wider bar area (AP4).
 // Presentational — the week of TrendDay rows comes from the Trends screen.
 import type { TrendDay } from '../../../../shared/types'
 import { StatBar } from './StatBar'
+import { formatHM } from '../../lib/format'
 
-const BARWRAP_HEIGHT = 168 // .mm-chart__barwrap fixed height (px)
-const MAX_BAR = 150 // tallest bar fills this; +8 floor keeps quiet days visible (matches Session.jsx)
+const BARWRAP_HEIGHT = 300 // .mm-chart__barwrap fixed height (px); taller than the kit's 168 (AP4)
+const MAX_BAR = 280 // tallest bar fills this; +8 floor keeps quiet days visible (matches Session.jsx)
 
 export function TrendsChart({ week }: { week: TrendDay[] }): React.JSX.Element {
   const totals = week.map((d) => d.productive + d.unproductive + d.notsure)
@@ -25,7 +27,7 @@ export function TrendsChart({ week }: { week: TrendDay[] }): React.JSX.Element {
           <div key={d.date} className="flex flex-1 flex-col items-center gap-2">
             {/* .mm-chart__barwrap: fixed-height area, bars grow up from the baseline */}
             <div className="flex items-end" style={{ height: BARWRAP_HEIGHT }}>
-              <div style={{ height: h, width: 18 }}>
+              <div style={{ height: h, width: 36 }}>
                 <StatBar
                   orientation="vertical"
                   productive={d.productive}
@@ -34,8 +36,10 @@ export function TrendsChart({ week }: { week: TrendDay[] }): React.JSX.Element {
                 />
               </div>
             </div>
-            {/* .mm-chart__total: rounded hours, data font */}
-            <span className="font-data text-[12px] text-muted">{Math.round(total / 60)}h</span>
+            {/* .mm-chart__total: productive / total, data font */}
+            <span className="whitespace-nowrap font-data text-[12px] text-muted">
+              <span className="text-ink">{formatHM(d.productive)}</span> / {formatHM(total)}
+            </span>
             {/* .mm-chart__day */}
             <span className="text-[12px] font-semibold text-faint">{d.day}</span>
           </div>

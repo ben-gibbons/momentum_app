@@ -8,7 +8,7 @@ import { getDb } from '../db'
 import {
   Classification,
   type BreakdownItem,
-  type DayBreakdown,
+  type Breakdown,
   type SessionTotals,
   type TodayFocus,
   type TrendDay,
@@ -125,12 +125,11 @@ export function getMonth(monthStart: number): TrendWeek[] {
 }
 
 // Apps (host-less rows, grouped by app_key) and sites (grouped by host) ranked by minutes within
-// each classification for one day. Labels are what the rows recorded (A7): the app name,
-// "Desktop", or the host. Separate from rules.listNotSure(), which is a 30-day Settings view.
-export function getDayBreakdown(dayStart: number): DayBreakdown {
+// each classification over [from, to) — a day, a week or a month's weeks (AP6). Labels are what
+// the rows recorded (A7): the app name, "Desktop", or the host. Separate from
+// rules.listNotSure(), which is a 30-day Settings view.
+export function getBreakdown(from: number, to: number): Breakdown {
   const now = nowSecs()
-  const from = dayStart
-  const to = addDays(dayStart, 1)
   const rows = getDb()
     .prepare(
       `SELECT classification, 'app' AS kind, MAX(app) AS label,
@@ -149,7 +148,7 @@ export function getDayBreakdown(dayStart: number): DayBreakdown {
     label: string
     secs: number
   }[]
-  const out: DayBreakdown = { productive: [], unproductive: [], notsure: [] }
+  const out: Breakdown = { productive: [], unproductive: [], notsure: [] }
   for (const r of rows) {
     const item: BreakdownItem = { kind: r.kind, label: r.label, minutes: Math.round(r.secs / 60) }
     if (r.classification === Classification.PRODUCTIVE) out.productive.push(item)

@@ -42,7 +42,7 @@ const api: MomentumApi = {
   trends: {
     getWeek: (weekStart?: number) => ipcRenderer.invoke('trends:getWeek', weekStart),
     getDay: (dayStart: number) => ipcRenderer.invoke('trends:getDay', dayStart),
-    getDayBreakdown: (dayStart: number) => ipcRenderer.invoke('trends:getDayBreakdown', dayStart),
+    getBreakdown: (from: number, to: number) => ipcRenderer.invoke('trends:getBreakdown', from, to),
     getMonth: (monthStart: number) => ipcRenderer.invoke('trends:getMonth', monthStart)
   },
   logs: {

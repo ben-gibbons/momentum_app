@@ -1,6 +1,7 @@
 // components/SessionTiles.tsx
-// The tiles below the Today card: "This session" (productive big-number + a productive/
-// unproductive/not-sure stat bar; clicking it opens Productivity Trends → Today, D11) and "Toward
+// The tiles below the Today card: "This session" (productive / total pair, labeled (AP3),
+// + a productive/unproductive/not-sure stat bar; clicking it opens Productivity Trends → Today,
+// D11) and "Toward
 // a break" (an SVG progress ring toward the 50-min break target) on the first row, and the
 // "Timers" tile under "This session" on the second (it reads the timer store itself). Session data comes from session.getCurrent + session.getTodayFocus.
 import type { SessionTotals, TodayFocus } from '../../../shared/types'
@@ -86,11 +87,16 @@ export function SessionTiles({
         className="cursor-pointer rounded-xl bg-green-800 px-[22px] py-5 shadow-sm transition-colors hover:bg-green-750 active:bg-green-900 focus-visible:outline-none focus-visible:shadow-[var(--ring-focus)]"
       >
         <div className="mb-[14px] text-[13px] font-semibold text-green-100">This session</div>
-        <div className="font-data text-[34px] font-semibold leading-none tracking-[-0.02em] text-white">
-          {formatHM(current.productive)}
+        <div className="flex items-end gap-2">
+          <div className="font-data text-[34px] font-semibold leading-none tracking-[-0.02em] text-white">
+            {formatHM(current.productive)}
+          </div>
+          <div className="pb-[2px] font-data text-[20px] font-semibold leading-none text-green-200">
+            / {formatHM(current.productive + current.unproductive + current.notsure)}
+          </div>
         </div>
         <div className="mt-2 text-[11px] uppercase tracking-[0.06em] text-green-200">
-          productive
+          productive / total
         </div>
         <StatBar current={current} />
       </div>

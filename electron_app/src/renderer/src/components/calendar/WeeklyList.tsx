@@ -56,10 +56,11 @@ export function WeeklyList({
   const done = tasks.filter((t) => t.completed).length
 
   return (
-    <div className="rounded-xl border border-border-default bg-card px-5 py-2 shadow-sm">
+    // h-full: the Week view stretches this card to the day grid's height.
+    <div className="h-full rounded-xl border border-border-default bg-card px-5 py-2 shadow-sm">
       <div className="flex items-center justify-between gap-3 pb-[6px] pt-[14px]">
         <h3 className="font-display text-[22px] font-medium tracking-[-0.01em] text-ink">
-          This week
+          This week&rsquo;s tasks
         </h3>
         <span className="font-data text-[13px] text-muted">
           {done} of {tasks.length} done
@@ -161,7 +162,7 @@ function WeeklyRow({
           <button
             type="button"
             onClick={() => onEdit(task.id)}
-            className={`block max-w-full truncate text-left text-[15px] leading-[1.4] hover:underline ${
+            className={`block max-w-full break-words text-left text-[15px] leading-[1.4] hover:underline ${
               task.completed ? 'text-faint line-through' : 'text-body'
             }`}
           >

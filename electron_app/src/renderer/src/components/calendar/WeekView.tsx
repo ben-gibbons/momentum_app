@@ -66,7 +66,9 @@ export function WeekView({
   return (
     <div>
       {error && <p className="mb-3 text-[13px] text-unproductive">{error}</p>}
-      <div className="grid grid-cols-[300px_minmax(0,1fr)] items-start gap-5">
+      {/* The list card keeps its 300px and stretches to the day grid's height; the day columns
+          take the rest of the (wide) page (AP1). */}
+      <div className="grid grid-cols-[300px_minmax(0,1fr)] items-stretch gap-5">
         <WeeklyList
           weekStart={weekStart}
           tasks={weekly.data ?? []}
@@ -115,13 +117,13 @@ function DayColumn({
 }: DayColumnProps): React.JSX.Element {
   const today = isToday(day)
   return (
-    <div className="flex min-h-[320px] min-w-0 flex-col">
+    <div className="flex min-h-[560px] min-w-0 flex-col">
       <div
-        className={`flex items-center justify-between gap-1 border-b border-border-subtle px-2 py-[8px] ${
+        className={`relative flex flex-col items-center border-b border-border-subtle px-2 py-[8px] ${
           today ? 'bg-brand-soft' : ''
         }`}
       >
-        <div className="min-w-0 leading-tight">
+        <div className="min-w-0 text-center leading-tight">
           <div
             className={`text-[11px] font-semibold uppercase tracking-[0.06em] ${today ? 'text-brand' : 'text-muted'}`}
           >
@@ -135,26 +137,22 @@ function DayColumn({
           type="button"
           aria-label={`Add a task on ${weekdayShort(day)} ${dayOfMonth(day)}`}
           onClick={() => onCreate(day)}
-          className="flex h-6 w-6 flex-none items-center justify-center rounded-md text-brand transition-colors hover:bg-card"
+          className="absolute right-1 top-1 flex h-6 w-6 flex-none items-center justify-center rounded-md text-brand transition-colors hover:bg-card"
         >
           <Plus className="h-4 w-4" />
         </button>
       </div>
 
       <div className="flex flex-1 flex-col gap-[2px] px-[6px] py-[6px]">
-        {tasks.length === 0 ? (
-          <p className="px-1 py-2 text-[12px] text-faint">Nothing planned</p>
-        ) : (
-          tasks.map((task) => (
-            <DayTaskRow
-              key={dailyKey(task)}
-              task={task}
-              highlighted={task.id != null && task.id === highlightId}
-              onToggle={onToggle}
-              onEdit={onEdit}
-            />
-          ))
-        )}
+        {tasks.map((task) => (
+          <DayTaskRow
+            key={dailyKey(task)}
+            task={task}
+            highlighted={task.id != null && task.id === highlightId}
+            onToggle={onToggle}
+            onEdit={onEdit}
+          />
+        ))}
       </div>
     </div>
   )
@@ -198,7 +196,7 @@ function DayTaskRow({ task, highlighted, onToggle, onEdit }: DayTaskRowProps): R
           disabled={projected}
           title={task.title}
           onClick={() => task.id != null && onEdit(task.id)}
-          className={`block max-w-full truncate text-left text-[12px] ${
+          className={`block max-w-full break-words text-left text-[13px] leading-snug ${
             task.completed ? 'text-faint line-through' : 'text-body'
           } ${projected ? '' : 'hover:underline'}`}
         >

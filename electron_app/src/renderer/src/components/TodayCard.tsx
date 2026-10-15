@@ -1,5 +1,6 @@
 // components/TodayCard.tsx
-// The "Today" card: head with the done count, the task list, and the "Add a task" row. The add
+// The "Today" card: head (the title — "Today" on Home; the Calendar's Day view passes the date
+// for any other day) with the done count, the task list, and the "Add a task" row. The add
 // row and a task title both open the TaskDialog owned by the screen (onAddTask / onEditTask);
 // task/step toggles bubble up the same way. Presentational: the screen owns the data and the
 // dialog so it can reload after a save. Rows are keyed by id, or by parent + date for projected
@@ -9,6 +10,7 @@ import type { DailyTask, TaskStep } from '../../../shared/types'
 import { TaskRow } from './TaskRow'
 
 interface TodayCardProps {
+  title?: string // defaults to "Today"
   tasks: DailyTask[]
   onToggleTask: (taskId: number) => void
   onToggleStep: (stepId: number) => void
@@ -18,6 +20,7 @@ interface TodayCardProps {
 }
 
 export function TodayCard({
+  title = 'Today',
   tasks,
   onToggleTask,
   onToggleStep,
@@ -30,7 +33,9 @@ export function TodayCard({
   return (
     <div className="rounded-xl border border-border-default bg-card px-7 py-2 shadow-sm">
       <div className="flex items-center justify-between pb-[6px] pt-[18px]">
-        <h3 className="font-display text-[30px] font-medium tracking-[-0.01em] text-ink">Today</h3>
+        <h3 className="font-display text-[30px] font-medium tracking-[-0.01em] text-ink">
+          {title}
+        </h3>
         <span className="font-data text-[13px] text-muted">
           {doneCount} of {tasks.length} done
         </span>
