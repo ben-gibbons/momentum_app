@@ -187,6 +187,12 @@ function TaskForm({ initial, detail, onClose, onSaved }: TaskFormProps): React.J
     if (!title) return setError('Give the task a title.')
     if (day == null && !dateOptional) return setError('Pick a date.')
     if (repeatOn && form.repeatDays === 0) return setError('Pick at least one day to repeat on.')
+    // A one-off day becoming a series is its first occurrence, so its weekday must be in the mask
+    // (the repository would otherwise prune the very row being edited).
+    if (repeatOn && detail?.type === 'daily' && !(form.repeatDays & weekdayBit(baseDay))) {
+      const weekday = new Date(baseDay * 1000).toLocaleDateString(undefined, { weekday: 'long' })
+      return setError(`Include this task's own day (${weekday}) in the repeat days.`)
+    }
     if (ends != null && day != null && ends < day)
       return setError('The end date is before the start date.')
 

@@ -4,8 +4,9 @@
 // fire() toasts every unfinished task whose reminder came due since the last fire, then re-arms.
 // Clicking a toast brings Momentum forward and pushes push:openTask so the renderer opens
 // Calendar on that task. rearm() is called after every tasks:* mutation (ipc.ts) and by
-// dayChange.ts on unlock / wake, because Node timers don't account for sleep. Reminders that
-// came due while the app was closed are not replayed: `lastFired` starts at launch.
+// dayChange.ts at launch and on unlock / wake, because Node timers don't account for sleep.
+// Reminders that came due while the app was closed are not replayed (`lastFired` starts at
+// launch), and a reminder set or moved to a time already past is missed, not fired late.
 import * as tasks from './repositories/tasks'
 import { nowSecs, startOfDay } from './repositories/util'
 import { notify } from './notify'
@@ -13,6 +14,9 @@ import { getMainWindow } from './window'
 import type { OpenTaskEvent } from '../shared/types'
 
 const MAX_WAIT_SECS = 12 * 3600
+// A reminder more than this far in the past at (re)arm time is treated as missed; the minute
+// covers one that came due while its timer was being reset by a mutation.
+const MISSED_AFTER_SECS = 60
 
 let timer: NodeJS.Timeout | null = null
 let lastFired = nowSecs()
@@ -43,14 +47,9 @@ export function rearm(): void {
   if (timer) clearTimeout(timer)
   timer = null
   const now = nowSecs()
+  lastFired = Math.max(lastFired, now - MISSED_AFTER_SECS)
   const next = tasks.nextReminder(lastFired)
   if (!next) return
   const wait = Math.min(Math.max(0, next.reminder_time - now), MAX_WAIT_SECS)
   timer = setTimeout(fire, wait * 1000)
-}
-
-// Called once after app ready.
-export function startReminders(): void {
-  lastFired = nowSecs()
-  rearm()
 }

@@ -6,11 +6,8 @@
 // existing mask opens on the preset that describes it (127 → Daily, anything else → Custom).
 // Controlled: mask in, onChange(mask) out.
 import { useState } from 'react'
+import { ALL_DAYS } from '../../../../shared/dates'
 import { WeekdayPicker } from './WeekdayPicker'
-
-// Every weekday bit set — the "Daily" preset. Mirrors ALL_DAYS in main/recurrence.ts (the
-// renderer must not import from src/main).
-const ALL_DAYS = 127
 
 type Preset = 'daily' | 'custom'
 

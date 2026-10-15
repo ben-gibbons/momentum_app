@@ -1,8 +1,8 @@
 // components/calendar/shared.ts
 // Small helpers shared by the Calendar views (V1 item 5, D6): the RangeNav labels (always with the
 // year), weekday headers, the "is this today" check, a stable React key for daily rows (projected
-// rows have no id — R11), and the tag / chip class strings. The classes are copied from TaskRow
-// rather than imported so Agent A's edits to TaskRow can't change this screen's look.
+// rows have no id — R11), and the tag / chip class strings (copied from TaskRow, which keeps its
+// own inline). Date / label formatting lives in lib/format (shortDate, categoryLabel).
 import type { DailyTask } from '../../../../shared/types'
 import { addDays, startOfDay } from '../../../../shared/dates'
 
@@ -43,11 +43,6 @@ export function weekdayShort(dayStart: number): string {
   return toDate(dayStart).toLocaleDateString(undefined, { weekday: 'short' })
 }
 
-// "Oct 13" — used by the "Carried to …" hint.
-export function monthDayShort(dayStart: number): string {
-  return toDate(dayStart).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
-
 export const dayOfMonth = (dayStart: number): number => toDate(dayStart).getDate()
 
 export const isToday = (dayStart: number): boolean => dayStart === startOfDay()
@@ -73,10 +68,6 @@ export function checkboxClass(completed: boolean, size: 'md' | 'sm'): string {
     completed ? 'border-green-500 bg-green-500' : 'border-sand-400'
   }`
 }
-
-// Capitalize a category for its tag ("work" → "Work"); local copy of lib/format categoryLabel.
-export const categoryTag = (c: string | null): string | null =>
-  c ? c[0].toUpperCase() + c.slice(1) : null
 
 // Brand ring applied to the row a reminder toast asked to open (Calendar `focus`).
 export const HIGHLIGHT_CLASS = 'ring-2 ring-brand ring-offset-2 ring-offset-card rounded-md'

@@ -72,6 +72,9 @@ export function monthWeeks(monthStart: number): number[] {
 }
 
 // Bit for the weekday of dayStart in a repeat mask: Mon = 1, Tue = 2, … Sat = 32, Sun = 64.
+// Every weekday bit set: the "Daily" repeat preset (shared by recurrence.ts and RepeatPicker).
+export const ALL_DAYS = 127
+
 export function weekdayBit(dayStart: number): number {
   const d = new Date(dayStart * 1000)
   return 1 << ((d.getDay() + 6) % 7)

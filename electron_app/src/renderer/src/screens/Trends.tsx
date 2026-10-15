@@ -22,6 +22,7 @@ import {
   weekStartMonday
 } from '../../../shared/dates'
 import { RangeNav } from '../components/RangeNav'
+import { Tabs, type TabItem } from '../components/Tabs'
 import { SessionStatGrid } from '../components/session/SessionStatGrid'
 import { StatBar } from '../components/session/StatBar'
 import { TrendsChart } from '../components/session/TrendsChart'
@@ -32,37 +33,11 @@ const ZERO_SESSION: SessionTotals = { productive: 0, unproductive: 0, notsure: 0
 
 type Tab = 'today' | 'week' | 'month'
 
-// Underline tab — recreates the design-system Tabs (variant="underline"): a brand underline under
-// the active tab, muted labels otherwise. Local to this screen; no shared Tabs component exists yet.
-function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }): React.JSX.Element {
-  const items: { id: Tab; label: string }[] = [
-    { id: 'today', label: 'Today' },
-    { id: 'week', label: 'This week' },
-    { id: 'month', label: 'This month' }
-  ]
-  return (
-    <div className="flex gap-[22px] border-b border-border-default" role="tablist">
-      {items.map((t) => {
-        const active = t.id === tab
-        return (
-          <button
-            key={t.id}
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(t.id)}
-            className={`relative -mb-px py-[10px] text-[13px] font-semibold transition-colors ${
-              active
-                ? 'text-ink after:absolute after:inset-x-0 after:-bottom-px after:h-[2px] after:rounded-full after:bg-brand after:content-[""]'
-                : 'text-muted hover:text-body'
-            }`}
-          >
-            {t.label}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
+const TABS: TabItem<Tab>[] = [
+  { id: 'today', label: 'Today' },
+  { id: 'week', label: 'This week' },
+  { id: 'month', label: 'This month' }
+]
 
 // Small swatch + label used in the chart legend (recreates the StatusDot used in Session.jsx).
 function LegendDot({ color, label }: { color: string; label: string }): React.JSX.Element {
@@ -325,7 +300,7 @@ export default function Trends(): React.JSX.Element {
           </p>
         </header>
 
-        <Tabs tab={tab} onChange={setTab} />
+        <Tabs items={TABS} tab={tab} onChange={setTab} />
 
         <div className="mt-[22px] mb-[18px]">
           <RangeNav

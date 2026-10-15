@@ -15,12 +15,11 @@ import { useEffect, useRef, useState } from 'react'
 import { Check, Plus, Repeat } from 'lucide-react'
 import type { WeeklyTask } from '../../../../shared/types'
 import { addDays, startOfDay, weekStartMonday } from '../../../../shared/dates'
+import { categoryLabel, shortDate } from '../../lib/format'
 import {
-  categoryTag,
   checkboxClass,
   CHIP_CLASS,
   HIGHLIGHT_CLASS,
-  monthDayShort,
   RISK_TAG_CLASS,
   TAG_CLASS,
   weekdayShort
@@ -134,7 +133,7 @@ function WeeklyRow({
   const superseded = task.carriedTo != null
   // A day can be given to an open single-entry task that has none and hasn't been carried onward.
   const canAddDay = !series && !task.completed && !superseded && !task.scheduled
-  const tag = categoryTag(task.category)
+  const tag = categoryLabel(task.category)
 
   return (
     <li
@@ -185,7 +184,7 @@ function WeeklyRow({
             {task.carried && <span className={CHIP_CLASS}>Carried over</span>}
             {task.carriedTo != null && (
               <span className="text-[12px] text-faint">
-                → carried to week of {monthDayShort(task.carriedTo)}
+                → carried to week of {shortDate(task.carriedTo)}
               </span>
             )}
           </div>

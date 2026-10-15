@@ -7,7 +7,6 @@ import { startSessionManager, stopSessionManager } from './session-manager'
 import { startMonitoring, stopMonitoring } from './monitoring'
 import { registerIpc } from './ipc'
 import { startDayChange } from './dayChange'
-import { startReminders } from './reminders'
 import { seedDevFixtures } from './seed'
 import { loadPage, setMainWindow } from './window'
 import { handleDistraction } from './distraction'
@@ -72,11 +71,9 @@ app.whenReady().then(() => {
   // has data to read on first launch. Dev-only — never runs in a packaged build.
   if (is.dev) seedDevFixtures()
   registerIpc()
-  // Daily task routine (carry-over, series days) for today, then the midnight / wake re-runs;
-  // reminder toasts armed for the next reminder_time. Both before the window so Home loads the
-  // day's final task list.
+  // Daily task routine (carry-over, series days) for today, then the midnight / wake re-runs; it
+  // also arms the reminder toasts. Before the window so Home loads the day's final task list.
   startDayChange()
-  startReminders()
 
   createWindow()
   startSessionManager({ onDistraction: handleDistraction })

@@ -12,6 +12,7 @@ import type { DailyTask } from '../../../../shared/types'
 import { addDays, dayBoundaries } from '../../../../shared/dates'
 import { api, ipcErrorMessage } from '../../lib/api'
 import { useAsync } from '../../lib/useAsync'
+import { shortDate } from '../../lib/format'
 import { WeeklyList } from './WeeklyList'
 import {
   checkboxClass,
@@ -19,7 +20,6 @@ import {
   dayOfMonth,
   HIGHLIGHT_CLASS,
   isToday,
-  monthDayShort,
   weekdayShort
 } from './shared'
 
@@ -210,7 +210,7 @@ function DayTaskRow({ task, highlighted, onToggle, onEdit }: DayTaskRowProps): R
         {projected && <div className="text-[10px] italic text-faint">planned</div>}
         {superseded && (
           <div className="text-[10px] text-faint">
-            → {task.recurring ? 'moved' : 'carried'} to {monthDayShort(task.carriedTo!)}
+            → {task.recurring ? 'moved' : 'carried'} to {shortDate(task.carriedTo!)}
           </div>
         )}
       </div>

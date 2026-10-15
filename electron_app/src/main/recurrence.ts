@@ -8,8 +8,7 @@
 // unit-tested; the repositories and the daily routine call it. Masks: bit 0 = Mon … bit 6 = Sun.
 import { addDays, weekStartMonday, weekdayBit } from '../shared/dates'
 
-// Every weekday set: the "Daily" repeat preset.
-export const ALL_DAYS = 127
+export { ALL_DAYS } from '../shared/dates'
 
 // The repeat-relevant columns of one weekly row. startsOn is the dialog date the series was
 // created on (tasks.date on a weekly row); days of the first week before it are not occurrences.

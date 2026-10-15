@@ -149,6 +149,12 @@ function liveDaily(weeklyId: number): number | undefined {
   return r?.id
 }
 
+// A series row's start as the dialog shows it: its own start day; on a continued week's row
+// (date NULL) that week's first occurrence; else its Monday.
+function seriesStart(r: TaskRow): number | null {
+  return r.date ?? seriesDays(seriesOf(r))[0] ?? r.week_start
+}
+
 function seriesOf(r: TaskRow): SeriesRow {
   return {
     id: r.id,
@@ -398,11 +404,7 @@ export function get(taskId: number): TaskDetail | null {
     const live = liveDaily(taskId)
     if (live != null) return get(live)
   }
-  const date = singleWeekly
-    ? null
-    : row.type === 'weekly'
-      ? (row.date ?? seriesDays(seriesOf(row))[0] ?? row.week_start)
-      : row.date
+  const date = singleWeekly ? null : row.type === 'weekly' ? seriesStart(row) : row.date
   // A daily reports its parent's repeat fields so the dialog knows it belongs to a series.
   const series =
     row.type === 'daily' && row.parent_task_id != null ? getRow(row.parent_task_id) : row
@@ -555,6 +557,32 @@ export function update(taskId: number, patch: TaskPatch): void {
 
     if (patch.steps) syncSteps(taskId, patch.steps)
 
+    // A series' time, reminder and steps are its template: this week's unfinished days from today
+    // follow, each at its own date (generateWeek only creates missing days, it never revisits).
+    if (row.type === 'weekly' && isRecurring(row.repeat_days) && !stopping) {
+      const dueChanged = patch.dueDate !== undefined
+      const reminderChanged = patch.reminderTime !== undefined
+      if (dueChanged || reminderChanged || patch.steps) {
+        const template = getRow(taskId)!
+        const days = db
+          .prepare(
+            'SELECT id, date FROM tasks WHERE parent_task_id = ? AND completed = 0 AND date >= ?'
+          )
+          .all(taskId, today) as { id: number; date: number }[]
+        const setDue = db.prepare('UPDATE tasks SET due_date = ? WHERE id = ?')
+        const setReminder = db.prepare('UPDATE tasks SET reminder_time = ? WHERE id = ?')
+        const clearSteps = db.prepare('DELETE FROM task_steps WHERE task_id = ?')
+        for (const d of days) {
+          if (dueChanged) setDue.run(atTimeOf(template.due_date, d.date), d.id)
+          if (reminderChanged) setReminder.run(atTimeOf(template.reminder_time, d.date), d.id)
+          if (patch.steps) {
+            clearSteps.run(d.id)
+            copySteps(taskId, d.id, false)
+          }
+        }
+      }
+    }
+
     let startMoved = false
     const mask = patch.repeatDays ?? row.repeat_days // the mask the row has after this patch
     // A stop settles the series' days itself; the start date the dialog sends along with it is
@@ -576,9 +604,11 @@ export function update(taskId: number, patch: TaskPatch): void {
           )
           addToDaily(taskId, newDay)
         }
-      } else {
-        // A series' start: its first occurrence on or after the new day, in that day's week. The
-        // prune below drops the unfinished days it no longer covers and generates the new ones.
+      } else if (!isRecurring(row.repeat_days) || newDay !== seriesStart(row)) {
+        // A series' start — only when the date actually changed (the dialog always sends one,
+        // and clamping an unchanged past start to today would shrink the week's target): its
+        // first occurrence on or after the new day, in that day's week. The prune below drops the
+        // unfinished days it no longer covers and generates the new ones.
         const start = firstOccurrence(newDay, mask, today)
         if (start !== row.date || weekStartMonday(start) !== row.week_start) {
           db.prepare('UPDATE tasks SET date = ?, week_start = ? WHERE id = ?').run(
@@ -594,11 +624,22 @@ export function update(taskId: number, patch: TaskPatch): void {
     const repeatChanged = patch.repeatDays !== undefined || patch.repeatUntil !== undefined
     if (row.type === 'daily' && parent && !isRecurring(parent.repeat_days) && isRecurring(mask)) {
       // Repeat switched on for a one-off task (the dialog edits the day, not its mirror): the
-      // weekly becomes a series starting on this day; this day is its first occurrence.
+      // weekly becomes a series starting on this day. The mirror has no time / steps of its own,
+      // so it takes the day's as the series template first; and the day's own weekday is always
+      // in the mask, so the row being edited is the first occurrence rather than a day to prune.
+      const day = getRow(taskId)!
+      const start = day.date ?? today
+      db.prepare('UPDATE tasks SET due_date = ?, reminder_time = ? WHERE id = ?').run(
+        day.due_date,
+        day.reminder_time,
+        parent.id
+      )
+      db.prepare('DELETE FROM task_steps WHERE task_id = ?').run(parent.id)
+      copySteps(taskId, parent.id, false)
       update(parent.id, {
-        repeatDays: mask,
+        repeatDays: mask | weekdayBit(start),
         repeatUntil: patch.repeatUntil ?? null,
-        date: getRow(taskId)!.date ?? today
+        date: start
       })
     } else if (stopping) {
       stopRepeating(taskId, today)

@@ -19,24 +19,24 @@ Take the unpolished V1 build to a usable, mostly functioning desktop app with en
     - [x] Window to front via `setAlwaysOnTop` hop + `focus()` + `flashFrame` (`window.ts`); OS toast via Electron `Notification` — completed 2026-10-06
     - [x] Popup has an X; log / risk-factor actions keep existing routing; nudge-started logs are tagged "From a nudge" — completed 2026-10-06
     - [x] Dynamic copy from the DistractionEvent (site/app + exact run length); not-sure toasts explain why — completed 2026-10-06
-    - [ ] Risk factor → recurring task with a risk-factor category: moved to item 5 (needs the daily routine)
+    - [x] Risk factor → recurring task with a risk-factor category: moved to item 5 — completed 2026-10-13 there (a daily series per selected factor, tagged "Risk factor")
 - [x] 3. Timers + notifications — completed 2026-10-06
     - [x] App-wide timer store (`lib/timers.tsx`) + Timers tile on Daily Tasks: log timers outlive the log, custom timers (min + sec), OS toast + repeating beep (mutable), Restart; timers pause with monitoring on lock/sleep. In-memory only — completed 2026-10-06
 - [x] 4. Settings screen — completed 2026-10-06
     - [x] Name, nudge thresholds + per-class cooldowns (min + sec, 10 s steps, cooldown ≥ threshold), strict mode, Productive / Unproductive lists with placeholder suggestions, "Not sure yet" reclassify list, multi-window explanation; autosaves — completed 2026-10-06
     - [x] Master on/off switch on the Distraction popup card (`monitoring_enabled`): off stops polling, the sidecar, session rows and nudges, and greys out every polling-dependent setting — completed 2026-10-07
     - [ ] Break-down mode (V3) and profile (V2) controls deliberately omitted until their versions
-- [ ] 5. Daily task carry-over to new day (only incomplete tasks), weekly list sql data review, update written-in tasks to have a popup page to set date/time, category, steps, reminders, Calendar view for daily/weekly, weekly carry-over (double check it follows daily carry-over)
-    - [ ] "Add a task" row currently only captures a title — carry-over, weekly flow, and task-create menu interlock; build together
-    - [ ] Weekly default, daily or monthly views
-    - [ ] Morning routine generates the recurring daily task for each active `risk_factors` row (moved from item 2; needs a `risk_factor` task category)
-- [ ] 6. Splash animation
-    - [ ] CSS `offset-path` snowball roll renders imperfectly in Electron (position/size) — A/B against `splash.html` in a browser to tune
-    - [ ] Do not rewrite to SVG `<animateMotion>` — it was tried and reverted (wrong size/start/end, lost wordmark+caption); CSS `offset-path` + keyframes is the correct basis
-- [ ] 7. Productivity Trends page is same as Current Session
+- [x] 5. Daily task carry-over to new day (only incomplete tasks), weekly list sql data review, update written-in tasks to have a popup page to set date/time, category, steps, reminders, Calendar view for daily/weekly, weekly carry-over (double check it follows daily carry-over) — completed 2026-10-13 (`routine.ts` daily routine at launch / midnight / unlock-wake: carry-over as a copy with `carried_from`, Monday weekly carry on the same mechanism, repeating series on a weekday mask, risk-factor series; `tasks` rebuilt by migration v7 + `created_at` v8; completion on every daily row; reminders as OS toasts; see `docs/database-overview.md`)
+    - [x] "Add a task" row currently only captures a title — carry-over, weekly flow, and task-create menu interlock; build together — completed 2026-10-13 (TaskDialog: title, due date + time, optional category, steps, reminder, Repeat Daily / Custom + end date; the same dialog edits, deletes, stops repeating)
+    - [x] Weekly default, daily or monthly views — completed 2026-10-13 (Calendar: Day / Week / Month with ‹ › arrows and year labels; weekly list with done/target counts; future series days projected read-only)
+    - [x] Morning routine generates the recurring daily task for each active `risk_factors` row (moved from item 2; needs a `risk_factor` task category) — completed 2026-10-13 (a daily series with `risk_factor_id` and a "Risk factor" tag; no category added — `category` became free text in v7)
+- [x] 6. Splash animation — completed 2026-10-14 (`design_system/brand/splash.html` ships verbatim as a second renderer page `src/renderer/splash.html`, loaded before `index.html`; content-sized 1100×700 window; 3.23 s = one full roll so the snowball lands)
+    - [x] CSS `offset-path` snowball roll renders imperfectly in Electron (position/size) — A/B against `splash.html` in a browser to tune — completed 2026-10-14 (the React port drifted under Tailwind's base reset and a different font build; loading the design file itself removed the diff, verified by screenshot against Edge)
+    - [x] Do not rewrite to SVG `<animateMotion>` — it was tried and reverted (wrong size/start/end, lost wordmark+caption); CSS `offset-path` + keyframes is the correct basis — still the rule; to change the splash, edit the design file and re-copy it
+- [x] 7. Productivity Trends page is same as Current Session — completed 2026-10-13 (Current Session page + nav item removed; Productivity Trends has Today / This week / This month tabs with ‹ › arrows, a labeled productive / total pair, and ranked app / site lists per range; the Home "This session" tile opens Trends → Today)
     - [x] early shell built (`screens/Session.tsx`); real classification data flows since 2026-10-06 — completed 2026-10-06
-    - [ ] Update Current Session shell, create new page for productivity trends (there should be a template for this in ds)
-    - [ ] Ensure SQL database is storing daily/previous day trends properly as accumulated data and deleting the rest for previous days
+    - [x] Update Current Session shell, create new page for productivity trends (there should be a template for this in ds) — completed 2026-10-13 (`screens/Session.tsx` → `screens/Trends.tsx`; `MonthChart`, `BreakdownList`)
+    - [x] Verify daily/weekly/monthly accumulation at query time (raw rows kept) — completed 2026-10-13 (`sessions.getDay / getWeek / getMonth / getBreakdown` aggregate raw rows with DST-safe day boundaries; nothing is pruned — the 30-day window applies only to Settings "Not sure yet")
 - [ ] 8. Verify that logs save and can be reviewed
     - [ ] Packaged-build gap: `distortions` and `risk_factor_catalog` defaults are seeded only by dev `seed.ts`, so a fresh install has an empty distortion list in the log flow — move those static seeds into a `db.ts` migration (the Productive/Unproductive defaults already live there)
 - [ ] 9. Reduce clutter in log flow or resize the card (steps 3 and 4, review all steps and remove unnecessary steps)
@@ -84,6 +84,7 @@ Add necessary features to fill in final placeholders and make app cover all core
     - [ ] Carried over tasks show original date added or started, original due date
 - [ ] 10. Productivity trends has full calendar view, not just current week, add more charts/visuals
 - [ ] 11. Add V1.2 note to splash
+- [ ] 12. Editable category list — no migration needed: migration 7 dropped the `category` CHECK (free text, NULL = none), so only the `Category` type, the dialog select and the tag colours change
 
 ---
 

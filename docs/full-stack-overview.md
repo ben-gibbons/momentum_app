@@ -65,7 +65,7 @@ The renderer **pulls** data on demand via typed request/response channels (`ipcR
 
 > Note: the scaffold's original push channel `window.api.onMonitorData` was **removed** once `session-manager.ts` began writing polls straight to SQLite — pushing raw polls to the renderer had no consumer. The renderer reads session/trend data on demand via `session.*`/`trends.*` instead.
 
-New IPC channels are added in three places kept in sync: `src/main/ipc.ts` (handler), `src/preload/index.ts` (bridge), and the `MomentumApi` type in `src/shared/types.ts`. Main → renderer pushes use `webContents.send` on `push:`-prefixed channels (`push:distraction`, `push:monitoringPaused`), exposed to the renderer as `api.events.on*` subscriptions that return an unsubscribe.
+New IPC channels are added in three places kept in sync: `src/main/ipc.ts` (handler), `src/preload/index.ts` (bridge), and the `MomentumApi` type in `src/shared/types.ts`. Main → renderer pushes use `webContents.send` on `push:`-prefixed channels (`push:distraction`, `push:monitoringPaused`, `push:dayChanged` — the daily task routine ran, refetch tasks — and `push:openTask` — a reminder toast was clicked, open Calendar on that task), exposed to the renderer as `api.events.on*` subscriptions that return an unsubscribe.
 
 ---
 
@@ -87,7 +87,7 @@ Every 10 seconds:
 
 ## What's Built
 
-The full design-system UI is in place, wired renderer ⇄ IPC ⇄ SQLite: splash → sidebar-routed shell with the Daily Tasks home (with app-wide timers), Current Session, Productivity Trends, Procrastination Logs + the CBT log flow, Risk Factors, the "Feeling distracted?" nudge, and Settings. The monitoring loop classifies every poll against the user's Productive / Unproductive lists (strict mode optional), a threshold detector fires the nudge (OS toast + window to front, repeating every cooldown), and polling pauses on lock screen / sleep.
+The full design-system UI is in place, wired renderer ⇄ IPC ⇄ SQLite. The renderer is two pages: the main process loads the cold-start splash (`splash.html`, the design file verbatim) first, then on `app:splashDone` grows the window and loads the app (`index.html`) — a sidebar-routed shell with the Daily Tasks home (with app-wide timers and the task dialog), Calendar (Day / Week / Month), Productivity Trends (Today / This week / This month), Procrastination Logs + the CBT log flow, Risk Factors, the "Feeling distracted?" nudge, and Settings. A daily routine in the main process carries incomplete tasks forward, continues repeating series and risk-factor series, and generates the week's days (at launch, midnight, and unlock / wake); reminders fire as OS toasts. The monitoring loop classifies every poll against the user's Productive / Unproductive lists (strict mode optional), a threshold detector fires the nudge (OS toast + window to front, repeating every cooldown), and polling pauses on lock screen / sleep.
 
 ## What's Not Built Yet
 
@@ -95,8 +95,6 @@ Tracked in [`docs/roadmap.md`](roadmap.md) (Deferred — V1/V2). The *screens* a
 
 | Feature | Version |
 |---|---|
-| Daily-task carry-over + weekly task UI + richer task-create menu | V1 |
-| Splash animation tuning; Productivity Trends as its own page | V1 |
 | Break notifier (50-min productive) | V2 |
 | Current Session live "Right now" card | V2 |
 | Framer Motion animations | V4 |

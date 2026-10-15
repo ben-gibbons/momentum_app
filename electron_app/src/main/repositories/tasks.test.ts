@@ -668,6 +668,70 @@ describe.skipIf(!loadable)('tasks repository', () => {
     expect(tasks.listDaily(TODAY)).toHaveLength(1)
   })
 
+  it('saving a series with its unchanged start (as the dialog does) does not move the start', () => {
+    const yesterday = addDays(TODAY, -1)
+    const ws = weekStartMonday(yesterday)
+    const id = db
+      .prepare(
+        "INSERT INTO tasks (type, week_start, date, title, repeat_days) VALUES ('weekly', ?, ?, 'Old', ?)"
+      )
+      .run(ws, yesterday, ALL_DAYS).lastInsertRowid as number
+    expect(tasks.get(id)!.date).toBe(yesterday)
+    tasks.update(id, { title: 'Older', date: yesterday })
+    expect(db.prepare('SELECT date, week_start, title FROM tasks WHERE id = ?').get(id)).toEqual({
+      date: yesterday,
+      week_start: ws,
+      title: 'Older'
+    })
+    // A changed date still moves it (clamped to today, like create).
+    tasks.update(id, { date: addDays(TODAY, -3) })
+    expect(tasks.get(id)!.date).toBe(TODAY)
+  })
+
+  it('repeat switched on makes the day the template: its time and steps reach every generated day', () => {
+    const d = tasks.create({
+      type: 'daily',
+      title: 'Run',
+      date: TODAY,
+      dueDate: TODAY + 16 * 3600,
+      steps: [{ text: 'laces' }]
+    })
+    const w = tasks.listWeekly(MON)[0].id
+    tasks.update(d, { repeatDays: ALL_DAYS })
+    for (const t of tasks.listDailyRange(TODAY, addDays(SUN, 1))) {
+      expect(t.dueDate).toBe(t.date + 16 * 3600)
+      expect(t.steps.map((s) => s.text)).toEqual(['laces'])
+    }
+    expect(tasks.get(w)).toMatchObject({ id: w, dueDate: TODAY + 16 * 3600 })
+    expect(tasks.get(w)!.steps.map((s) => s.text)).toEqual(['laces'])
+
+    // A mask that leaves out the day's own weekday still keeps the row being edited.
+    const d2 = tasks.create({ type: 'daily', title: 'Keep me', date: TODAY })
+    const w2 = tasks.listWeekly(MON).find((t) => t.title === 'Keep me')!.id
+    tasks.update(d2, { repeatDays: ALL_DAYS & ~weekdayBit(TODAY) })
+    expect(count('id = ?', d2)).toBe(1)
+    expect(tasks.listWeekly(MON).find((t) => t.id === w2)!.repeatDays).toBe(ALL_DAYS)
+  })
+
+  it("editing a series' time or steps reaches this week's unfinished days, not ticked ones", () => {
+    const s = tasks.create({
+      type: 'daily',
+      title: 'Read',
+      date: TODAY,
+      repeatDays: ALL_DAYS,
+      dueDate: TODAY + 16 * 3600,
+      steps: [{ text: 'old' }]
+    })
+    const todayRow = tasks.listDaily(TODAY)[0].id!
+    tasks.toggleComplete(todayRow)
+    tasks.update(s, { dueDate: TODAY + 17 * 3600, steps: [{ text: 'new' }] })
+    for (const t of tasks.listDailyRange(TODAY, addDays(SUN, 1))) {
+      const hour = t.id === todayRow ? 16 : 17
+      expect(t.dueDate).toBe(t.date + hour * 3600)
+      expect(t.steps.map((x) => x.text)).toEqual([t.id === todayRow ? 'old' : 'new'])
+    }
+  })
+
   it('"stop repeating" keeps completed days from earlier weeks', async () => {
     const routine = await import('../routine')
     const s = tasks.create({ type: 'daily', title: 'Keep', date: TODAY, repeatDays: ALL_DAYS })

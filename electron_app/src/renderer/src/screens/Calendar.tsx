@@ -20,6 +20,7 @@ import {
   weekStartMonday
 } from '../../../shared/dates'
 import { RangeNav } from '../components/RangeNav'
+import { Tabs, type TabItem } from '../components/Tabs'
 import { TaskDialog, type TaskDialogProps } from '../components/tasks/TaskDialog'
 import { DayView } from '../components/calendar/DayView'
 import { WeekView } from '../components/calendar/WeekView'
@@ -36,36 +37,11 @@ type Tab = 'day' | 'week' | 'month'
 
 const HIGHLIGHT_MS = 4000
 
-// Underline tab — the local Tabs idiom from Trends.tsx (design-system Tabs variant="underline").
-function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }): React.JSX.Element {
-  const items: { id: Tab; label: string }[] = [
-    { id: 'day', label: 'Day' },
-    { id: 'week', label: 'Week' },
-    { id: 'month', label: 'Month' }
-  ]
-  return (
-    <div className="flex gap-[22px] border-b border-border-default" role="tablist">
-      {items.map((t) => {
-        const active = t.id === tab
-        return (
-          <button
-            key={t.id}
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(t.id)}
-            className={`relative -mb-px py-[10px] text-[13px] font-semibold transition-colors ${
-              active
-                ? 'text-ink after:absolute after:inset-x-0 after:-bottom-px after:h-[2px] after:rounded-full after:bg-brand after:content-[""]'
-                : 'text-muted hover:text-body'
-            }`}
-          >
-            {t.label}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
+const TABS: TabItem<Tab>[] = [
+  { id: 'day', label: 'Day' },
+  { id: 'week', label: 'Week' },
+  { id: 'month', label: 'Month' }
+]
 
 // What the dialog is open on; closed = null.
 type DialogState = Pick<TaskDialogProps, 'mode' | 'taskId' | 'initialDate' | 'initialRepeatDays'>
@@ -156,7 +132,7 @@ export default function Calendar({
           </p>
         </header>
 
-        <Tabs tab={tab} onChange={setTab} />
+        <Tabs items={TABS} tab={tab} onChange={setTab} />
         {/* Arrows, range label and Today centered over the calendar (AP2). */}
         <div className="mb-5 mt-4 flex justify-center">
           <RangeNav
