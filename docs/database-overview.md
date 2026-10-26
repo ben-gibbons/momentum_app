@@ -129,25 +129,48 @@ CREATE TABLE IF NOT EXISTS classification_rules (
 ```
 
 ### `tasks`
+Rebuilt by migration 7 (V1 item 5) and extended by migration 8; shown as it stands after both.
 ```sql
 CREATE TABLE tasks (
   id             INTEGER PRIMARY KEY,
   type           TEXT    NOT NULL CHECK (type IN ('weekly', 'daily')),
-  week_start     INTEGER,             -- Unix seconds, Monday of that week (weekly tasks)
-  date           INTEGER,             -- Unix seconds for the day (daily tasks)
+  week_start     INTEGER,             -- Unix seconds, Monday of the week (weekly rows)
+  date           INTEGER,             -- daily: the day; weekly series: its start day
   parent_task_id INTEGER REFERENCES tasks(id),
   title          TEXT    NOT NULL,
-  category       TEXT    CHECK (category IN ('work', 'personal', 'hobby', 'goal')),
+  category       TEXT,                -- free text, NULL = none; no CHECK (validated in TS)
   due_date       INTEGER,
   reminder_time  INTEGER,
   completed      INTEGER NOT NULL DEFAULT 0,
-  completed_at   INTEGER
+  completed_at   INTEGER,
+  repeat_days    INTEGER NOT NULL DEFAULT 0, -- weekday mask (bit 0 = Mon … bit 6 = Sun); 0 = once
+  repeat_until   INTEGER,             -- local midnight of the last day; NULL = until stopped
+  carried_from   INTEGER REFERENCES tasks(id),        -- the row this copy was carried / continued from
+  risk_factor_id INTEGER REFERENCES risk_factors(id), -- the factor a series was generated from
+  created_at     INTEGER              -- migration 8; a copy keeps its source's
 );
+CREATE INDEX idx_tasks_type_date ON tasks (type, date);        -- per-day lists
+CREATE INDEX idx_tasks_type_week ON tasks (type, week_start);  -- per-week lists
+CREATE INDEX idx_tasks_parent    ON tasks (parent_task_id);    -- the daily → weekly join
+CREATE INDEX idx_tasks_carried   ON tasks (carried_from);      -- the "already carried" EXISTS
+CREATE INDEX idx_tasks_reminder  ON tasks (reminder_time);     -- next-reminder lookup
 ```
 
-Completion lives on the **weekly task row** only. Daily task rows reference it via `parent_task_id`. Both views join on the weekly task to read completion state — one source of truth.
+**Rows.** A `daily` row is one day's occurrence of a task. A `weekly` row is either the single-entry mirror of a daily (so the weekly list is complete), or a **series** when `repeat_days != 0`: it repeats on the masked weekdays every week until `repeat_until`. On a series row, `date` is the day the series started (days of its first week before that are not occurrences); it was NULL on every weekly row before the rebuild, so the column was reused. The series' own `task_steps` are the template copied (unticked) onto each generated day. A series lives as a chain of weekly rows, one per week, each pointing at the previous week's row via `carried_from`.
 
-**Every daily task has a weekly parent.** A daily promoted from the weekly list links to its origin. A *written-in* daily task (typed directly into the daily list) auto-creates a matching weekly task in its own week and links to it — so it also appears in the weekly list. This keeps the invariant that completion always lives on a weekly row; there is no parent-less daily completion path. (Implemented in `repositories/tasks.ts` `create()`.)
+**`carried_from`** is the only carry column and means one of two things, told apart by `repeat_days`: on a single-entry row it is a **carry-over** link (an incomplete daily copied to today, or an incomplete weekly copied into the new week — the original stays on its date and renders "Carried to …"); on a series row it is the **continuation** link to the previous week's row. "Already carried" is `EXISTS (SELECT 1 FROM tasks c WHERE c.carried_from = t.id)`. Moving one day of a series uses the same mechanism: the old row stays as a superseded slot and the copy is the live day.
+
+**Completion lives on every daily row.** A weekly row shows *done / target* — target = the number of masked days in its week (1 for a single-entry task) — and is auto-completed when the count is reached with no day still open (`recomputeWeekly()`); a single-entry weekly can also be ticked directly and mirrors onto its day; a series weekly cannot (`toggleComplete` throws). A daily that was carried onward (a copy points at it) counts as **neither open nor done** for its weekly: ticking today's copy completes the weekly even though yesterday's original stays unticked.
+
+**Every daily task has a weekly parent.** A daily promoted from the weekly list links to its origin. A *written-in* daily task (the task dialog on Home) auto-creates a matching weekly task in its own week and links to it — so it also appears in the weekly list. (Implemented in `repositories/tasks.ts` `create()`.)
+
+**Task write rules** (`repositories/tasks.ts`, each in one transaction; no FK has `ON DELETE`, so every cascade is explicit SQL):
+- **Stop repeating** = the series becomes a one-off task: unfinished days after today are removed, today's and ticked days stay, the live row gets `repeat_days = 0`, earlier rows of the chain close at their own Sunday (`stopRepeating`).
+- **Delete series** keeps only ticked days, as a plain done task: every unfinished day of the chain goes whatever its date; a week's row left with ticked days gets `repeat_days 0`, `repeat_until NULL`, `carried_from NULL`; a row with none goes too. Nothing ticked = the whole series goes. Deleting a risk-factor series also closes that factor's `recur_until` so the routine doesn't restart it (`removeSeries`).
+- **Deleting a day** (single-entry) removes it, the rows it was carried from (so the routine can't carry it again), and its weekly mirror when no other day is left (`removeDailies` / `carryOrigins` / `tidyMirror`). A series day cannot be deleted on its own — the series would regenerate it.
+- **One day per single-entry task**: `addToDaily` refuses a second live day; the day is moved from the dialog instead (`update` with `date`).
+- **Moving a series day** leaves the old row as a superseded slot (copy with `carried_from`, neither generated again nor counted; steps and reminder move to the copy) (`moveSeriesDay`). A moved day survives later series edits.
+- **`tasks.get`** on a single-entry weekly that has a live day returns that daily — the dialog edits the task, not its mirror.
 
 ### `task_steps`
 The AI-generated ~20-minute breakdown of a task, surfaced by the home screen's "Steps" disclosure. Added for the V1 task UI / design handoff (not in the original schema). Steps attach to the **daily** task row they are shown under.
@@ -162,7 +185,7 @@ CREATE TABLE task_steps (
   completed_at INTEGER
 );
 ```
-The "next" step (highlighted with a Start button in the design) is the first incomplete step by `ordinal` — **computed at query time, not stored**.
+The "next" step (highlighted with a Start button in the design) is the first incomplete step by `ordinal` — **computed at query time, not stored**. A series' weekly row also holds steps: the template copied (unticked) onto each generated day. A carried-over copy keeps its steps with their completion state.
 
 ### `procrastination_logs`
 ```sql
@@ -210,7 +233,16 @@ CREATE TABLE risk_factors (
 );
 ```
 
-Each morning the app checks `risk_factors` for rows where `recur_until >= today` and creates a task row in `tasks` if one doesn't already exist for that day.
+**The daily routine** (`src/main/routine.ts`; SQL in `repositories/tasks.ts`) runs at launch, at the next local midnight and after unlock / wake (`dayChange.ts`), in one transaction, and is idempotent per day via the `last_routine_day` settings key (each step also checks for the row it would create, so a reset of that key re-runs harmlessly). Its steps, in order:
+
+1. **Continue series** — every active series (`repeat_days != 0`, `repeat_until` NULL or ≥ this Monday) whose latest weekly row is in an earlier week gets a row for this week, linked by `carried_from`, with a copy of the template steps.
+2. **Risk-factor series** — each `risk_factors` row with `recur_until >= today` that has no series yet (in any week, matched by `risk_factor_id` or title) gets a weekly series starting today: `repeat_days = 127`, `repeat_until = recur_until`'s day, `risk_factor_id` set, title = the factor label. Once it exists, step 1 carries it forward; a series the user stopped or deleted is not recreated here (re-selecting the factor goes through `reselectRiskFactorSeries`).
+3. **Weekly carry-over** — incomplete single-entry weeklies (`repeat_days = 0`, no `risk_factor_id`) from earlier weeks with no copy yet are copied into this week with `carried_from` (same weekday for a due date; steps keep their state).
+4. **Daily carry-over** — incomplete single-entry dailies from any past date with no copy yet are copied to today: due time of day kept, `reminder_time` dropped, steps with their state, parented to this week's copy of their weekly when it was carried (else the original parent). Recurring and risk-factor days never carry: a missed day stays missed.
+5. **Generate this week** — for every series row in this week, insert the daily rows it still owes from today to Sunday that don't exist yet (`generateWeek`), with the due / reminder time of day on that date and fresh template steps. Covers the risk-factor series just created.
+6. Record `last_routine_day = today`; `dayChange.ts` then pushes `push:dayChanged` so Home / Calendar refetch.
+
+Later weeks of a series are not materialised: the Calendar range query adds read-only *projected* rows (`id: null`) for them, and real rows replace them when that week's routine runs.
 
 A `risk_factors` instance is created **only when the user opts into recurrence** while selecting a factor (`repositories/riskFactors.ts` `select(catalogId, recur)`). Selecting a factor without recurrence just opens a seeded procrastination log and writes no `risk_factors` row.
 
@@ -236,7 +268,7 @@ CREATE TABLE distortions (
 ```
 
 ### `settings`
-Minimal key/value app settings (greeting name, distraction-popup thresholds and cooldowns, feature toggles). Keys: `user_name`, `threshold_unproductive` (120 s), `threshold_notsure` (300 s), `cooldown_unproductive` (240 s), `cooldown_notsure` (600 s), `strict_mode` (`0`/`1`), `monitoring_enabled` (`0`/`1`, default on — the Settings "Distraction popup" switch; off stops polling, the sidecar, session rows and nudges entirely, see `monitoring.ts`), `break_down_mode`. Values are stored as strings. `getAll()` also clamps durations (thresholds ≥ 10 s, each cooldown ≥ its threshold) so no writer — the Settings UI, DevTools, a hand-edited DB — can produce a cooldown that re-fires every poll. Rows are **not** required to exist: `settings.getAll()` fills any missing or unparsable key from `DEFAULTS` in `repositories/settings.ts` (the values in brackets above), so a packaged build — which has no seeded rows — behaves sensibly. Only dev fixtures (`seed.ts`) write the full set up front; a user's Settings edit upserts just the key that changed. Migration 6 split the old single `popup_cooldown` key into the two `cooldown_*` keys.
+Minimal key/value app settings (greeting name, distraction-popup thresholds and cooldowns, feature toggles). Keys: `user_name`, `threshold_unproductive` (120 s), `threshold_notsure` (300 s), `cooldown_unproductive` (240 s), `cooldown_notsure` (600 s), `strict_mode` (`0`/`1`), `monitoring_enabled` (`0`/`1`, default on — the Settings "Distraction popup" switch; off stops polling, the sidecar, session rows and nudges entirely, see `monitoring.ts`), `break_down_mode`, `last_routine_day` (local-midnight Unix seconds of the last daily-routine run, written by `routine.ts`; reset it to re-run the routine). Values are stored as strings. `getAll()` also clamps durations (thresholds ≥ 10 s, each cooldown ≥ its threshold) so no writer — the Settings UI, DevTools, a hand-edited DB — can produce a cooldown that re-fires every poll. Rows are **not** required to exist: `settings.getAll()` fills any missing or unparsable key from `DEFAULTS` in `repositories/settings.ts` (the values in brackets above), so a packaged build — which has no seeded rows — behaves sensibly. Only dev fixtures (`seed.ts`) write the full set up front; a user's Settings edit upserts just the key that changed. Migration 6 split the old single `popup_cooldown` key into the two `cooldown_*` keys.
 ```sql
 CREATE TABLE settings (
   key   TEXT PRIMARY KEY,
@@ -251,9 +283,9 @@ CREATE TABLE settings (
 `getDb()` runs two steps on first call, in order, and fresh and existing DB files take the identical path:
 
 1. **`initSchema()`** — the frozen **v0 baseline**: idempotent `CREATE TABLE IF NOT EXISTS` for `sessions`, `tasks`, `task_steps`, `procrastination_logs`, `log_steps`, `risk_factors`, `risk_factor_catalog`, `distortions`, `settings`. Nothing is ever added here.
-2. **`migrate()`** — reads `PRAGMA user_version` (0 on a fresh file) and applies `MIGRATIONS[i]` for every `i >= user_version`, bumping the version after each. Each step runs inside a single transaction **with the version bump**, so a failed step leaves the file untouched at its previous version. A failed migration fails every launch; `getDb()` closes the handle and throws an error naming the file (in dev the fix is deleting it — fixtures regenerate).
+2. **`migrate()`** — reads `PRAGMA user_version` (0 on a fresh file) and applies `MIGRATIONS[i]` for every `i >= user_version`, bumping the version after each. Each step runs inside a single transaction **with the version bump**, so a failed step leaves the file untouched at its previous version. A step that rebuilds a table other tables reference is written as `{ ownTransaction: true, run }`: the runner turns `PRAGMA foreign_keys` **off outside** the transaction (the pragma is a no-op inside one), runs the step, requires `PRAGMA foreign_key_check` to come back empty before the version bump (a reference the rebuild broke rolls the whole step back), and turns enforcement back on in a `finally`. A failed migration fails every launch; `getDb()` closes the handle and throws an error naming the file (in dev the fix is deleting it — fixtures regenerate).
 
-The six shipped steps (`user_version` after each in brackets):
+The eight shipped steps (`user_version` after each in brackets):
 
 | Step | What it does |
 |---|---|
@@ -263,8 +295,10 @@ The six shipped steps (`user_version` after each in brackets):
 | 3 → 4 | Adds `sessions.app_key` (guarded `ALTER TABLE`) and backfills it with the JS-lowercased `app`. |
 | 4 → 5 | Momentum's own window becomes a normal app named "Momentum App": adds the `('app', 'momentum app') → productive` rule, renames rows the old poller recorded under `electron` / `momentum`, and reclassifies their not-sure rows to productive. |
 | 5 → 6 | Splits the single `popup_cooldown` setting into `cooldown_unproductive` and `cooldown_notsure` (both carry the old value) and deletes the old key. |
+| 6 → 7 | **Rebuilds `tasks`** (`ownTransaction`) for V1 item 5 — SQLite's 12-step copy / drop / rename, ids preserved so `task_steps.task_id` and `parent_task_id` still line up: drops the `category` CHECK (free text, NULL = none), adds `repeat_days`, `repeat_until`, `carried_from`, `risk_factor_id`, creates the five indexes, and backfills `completed` onto every daily whose weekly parent was already done (completion moved to the daily row). Skips the copy if `tasks` already has `repeat_days` (a crash between rename and version bump). |
+| 7 → 8 | Adds `tasks.created_at` ("Created on" in the edit dialog) and backfills it from `date`, else `week_start`. |
 
-**The rule**: never edit the baseline or a shipped step. Any schema change — a new table, a new column, a data fix, a seed — is a new function **appended** to `MIGRATIONS`. `ALTER TABLE ... ADD COLUMN` has no `IF NOT EXISTS`, so guard it with `PRAGMA table_info` as steps 1 and 4 do.
+**The rule**: never edit the baseline or a shipped step. Any schema change — a new table, a new column, a data fix, a seed — is a new function **appended** to `MIGRATIONS`. `ALTER TABLE ... ADD COLUMN` has no `IF NOT EXISTS`, so guard it with `PRAGMA table_info` as steps 1 and 4 do. Dropping a constraint or adding a column with `REFERENCES` needs a table rebuild — use the `ownTransaction` form as step 7 does.
 
 ---
 

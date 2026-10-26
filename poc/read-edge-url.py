@@ -26,8 +26,10 @@ except ImportError:
     sys.stderr.write("pywinauto not found. Install with: pip install pywinauto\n")
     sys.exit(1)
 
-# AutomationId of the address bar — run inspect-edge-tree.py if this stops working
-ADDRESS_BAR_AUTO_ID = 'view_1021'
+# AutomationId of the address bar — run inspect-edge-tree.py if this stops working.
+# (view_1021 until Edge 15x; view_1017 since Edge 155, 2026-10. The app's copy in
+# electron_app/src/main/ also falls back to the control's name "Address and search bar".)
+ADDRESS_BAR_AUTO_ID = 'view_1017'
 
 POLL_INTERVAL_S = 10
 INITIAL_DELAY_S = 5

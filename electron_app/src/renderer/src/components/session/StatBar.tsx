@@ -1,7 +1,8 @@
 // components/session/StatBar.tsx
 // The signature Momentum stacked bar: productive / unproductive / not-sure segments sized by their
 // share of the total. Recreates the design-system StatBar (kit.css .mm-statbar*) in Tailwind.
-// Horizontal for the session summary; vertical for each column of the 7-day trends chart.
+// Horizontal for the session summary; vertical for each column of the trends charts, where it
+// fills the width the chart gives its bar.
 // Presentational — values (minutes) come from the parent.
 interface StatBarProps {
   productive: number
@@ -27,7 +28,7 @@ export function StatBar({
   // .mm-statbar__track: pill track on a sunken surface, 2px gaps between segments. Vertical stacks
   // bottom-up (column-reverse) and fills its parent's height; horizontal is a fixed-height bar.
   const track = vertical
-    ? 'flex h-full w-[14px] flex-col-reverse gap-[2px] overflow-hidden rounded-full bg-sand-200'
+    ? 'flex h-full w-full flex-col-reverse gap-[2px] overflow-hidden rounded-full bg-sand-200'
     : 'flex h-[14px] gap-[2px] overflow-hidden rounded-full bg-sand-200'
   return (
     <div className={track}>

@@ -1,8 +1,9 @@
 // components/SessionTiles.tsx
-// The tiles below the Today card: "This session" (productive big-number + a productive/
-// unproductive/not-sure stat bar) and "Toward a break" (an SVG progress ring toward the 50-min
-// break target) on the first row, and the "Timers" tile under "This session" on the second (it
-// reads the timer store itself). Session data comes from session.getCurrent + session.getTodayFocus.
+// The tiles below the Today card: "This session" (productive / total pair, labeled (AP3),
+// + a productive/unproductive/not-sure stat bar; clicking it opens Productivity Trends → Today,
+// D11) and "Toward
+// a break" (an SVG progress ring toward the 50-min break target) on the first row, and the
+// "Timers" tile under "This session" on the second (it reads the timer store itself). Session data comes from session.getCurrent + session.getTodayFocus.
 import type { SessionTotals, TodayFocus } from '../../../shared/types'
 import { formatHM } from '../lib/format'
 import { TimersTile } from './TimersTile'
@@ -13,6 +14,8 @@ const RING_CIRC = 2 * Math.PI * RING_RADIUS // ≈ 150.8
 interface SessionTilesProps {
   current: SessionTotals
   focus: TodayFocus
+  // Opens Productivity Trends → Today from the "This session" tile (D11).
+  onOpenTrends?: () => void
 }
 
 function StatBar({ current }: { current: SessionTotals }): React.JSX.Element {
@@ -61,16 +64,39 @@ function BreakRing({ focus }: { focus: TodayFocus }): React.JSX.Element {
   )
 }
 
-export function SessionTiles({ current, focus }: SessionTilesProps): React.JSX.Element {
+export function SessionTiles({
+  current,
+  focus,
+  onOpenTrends
+}: SessionTilesProps): React.JSX.Element {
   return (
     <div className="mt-5 grid grid-cols-2 gap-[18px]">
-      <div className="rounded-xl bg-green-800 px-[22px] py-5 shadow-sm">
+      {/* A div acting as a button (not <button>) so the tile keeps its block layout; Enter / Space
+          mirror the click for keyboard users. */}
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label="Open Productivity Trends"
+        onClick={onOpenTrends}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onOpenTrends?.()
+          }
+        }}
+        className="cursor-pointer rounded-xl bg-green-800 px-[22px] py-5 shadow-sm transition-colors hover:bg-green-750 active:bg-green-900 focus-visible:outline-none focus-visible:shadow-[var(--ring-focus)]"
+      >
         <div className="mb-[14px] text-[13px] font-semibold text-green-100">This session</div>
-        <div className="font-data text-[34px] font-semibold leading-none tracking-[-0.02em] text-white">
-          {formatHM(current.productive)}
+        <div className="flex items-end gap-2">
+          <div className="font-data text-[34px] font-semibold leading-none tracking-[-0.02em] text-white">
+            {formatHM(current.productive)}
+          </div>
+          <div className="pb-[2px] font-data text-[20px] font-semibold leading-none text-green-200">
+            / {formatHM(current.productive + current.unproductive + current.notsure)}
+          </div>
         </div>
         <div className="mt-2 text-[11px] uppercase tracking-[0.06em] text-green-200">
-          productive
+          productive / total
         </div>
         <StatBar current={current} />
       </div>

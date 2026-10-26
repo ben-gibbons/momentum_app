@@ -3,8 +3,11 @@
 # Polls visible Edge windows every 10s and emits JSON lines {handle, url} to stdout.
 # Spawned once on app start; runs for the lifetime of the app.
 #
-# If Edge URL polling stops working after an Edge update, ADDRESS_BAR_AUTO_ID may have
-# changed — run poc/inspect-edge-tree.py to find the new value and update the constant below.
+# Edge renumbers the address bar's AutomationId between releases (view_1021 → view_1017 with
+# Edge 155, 2026-10). The lookup tries the known id first and, on a miss, falls back to the
+# control's accessible name and adopts whatever id it carries now (find_address_bar), so an update
+# costs one slow poll instead of a release. If URL reading still stops, run poc/inspect-edge-tree.py
+# and update ADDRESS_BAR_AUTO_ID / ADDRESS_BAR_NAME below.
 #
 # Requires: pip install pywinauto
 
@@ -27,8 +30,13 @@ except ImportError:
 # would stretch the poll past the 10s cadence. One second is plenty for a real omnibox.
 Timings.window_find_timeout = 1
 
-# AutomationId of the Edge address bar — fragile to Edge updates, see header note above
-ADDRESS_BAR_AUTO_ID = 'view_1021'
+# AutomationId of the Edge address bar: only the first thing tried, see header note above.
+ADDRESS_BAR_AUTO_ID = 'view_1017'
+# Its accessible name (Edge's English UI string). It survived the renumbering that changed the id,
+# so it is the recovery key; a non-English Edge would need its own string here.
+ADDRESS_BAR_NAME = 'Address and search bar'
+# The id in use — starts as the constant, replaced when the name lookup finds a different one.
+address_bar_auto_id = ADDRESS_BAR_AUTO_ID
 
 POLL_INTERVAL_S = 10
 # 5s offset so this fires at the midpoint of each Node.js 10s poll window,
@@ -94,6 +102,29 @@ no_omnibox = set()
 poll_count = 0
 
 
+def find_address_bar(win_spec):
+    # Known id first (a direct, cheap lookup). If Edge has renumbered it, find the control by its
+    # accessible name instead and remember the id it carries now, so later polls are cheap again
+    # and no restart is needed. Raises ElementNotFoundError when the window has no address bar
+    # at all (PWA / --app= window); each miss costs the find timeout, which is why both are tried
+    # only until the window is banned (see omnibox_misses).
+    global address_bar_auto_id
+    try:
+        return win_spec.child_window(auto_id=address_bar_auto_id, control_type='Edit').wrapper_object()
+    except ElementNotFoundError:
+        # child_window(title=...) does not match the accessible name in this backend; walking the
+        # Edit descendants and comparing names does, and takes well under 100 ms.
+        found = next((e for e in win_spec.wrapper_object().element_info.descendants(control_type='Edit')
+                      if e.name == ADDRESS_BAR_NAME and e.automation_id), None)
+        if found is None:
+            raise
+        if found.automation_id != address_bar_auto_id:
+            sys.stderr.write(f"address bar AutomationId is now '{found.automation_id}' (was "
+                             f"'{address_bar_auto_id}'); update ADDRESS_BAR_AUTO_ID in read-edge-url.py\n")
+            address_bar_auto_id = found.automation_id
+        return win_spec.child_window(auto_id=address_bar_auto_id, control_type='Edit').wrapper_object()
+
+
 def looks_like_app_window(title):
     t = title.strip()
     return ' | ' in t or t.lower().startswith('devtools') or t.lower() == 'picture in picture'
@@ -119,8 +150,7 @@ def poll():
                 # desktop.windows() returns UIAWrapper objects which don't support child_window()
                 # directly — must convert to WindowSpecification via desktop.window(handle=...)
                 win_spec = desktop.window(handle=w.handle)
-                address_bar = win_spec.child_window(auto_id=ADDRESS_BAR_AUTO_ID, control_type='Edit')
-                url = address_bar.get_value()
+                url = find_address_bar(win_spec).get_value()
                 omnibox_misses.pop(w.handle, None)
                 # An empty address bar is the New Tab page; Node tracks it as its own app so time
                 # on a feed-filled new tab can still be sorted and nudged.

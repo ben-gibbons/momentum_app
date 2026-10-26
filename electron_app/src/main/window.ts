@@ -3,8 +3,21 @@
 // fire path) can bring it forward without importing index.ts. Created for the V1 distraction
 // popup: index.ts registers the window here after createWindow() and clears it on 'closed'.
 import type { BrowserWindow } from 'electron'
+import { join } from 'path'
+import { is } from '@electron-toolkit/utils'
 
 let mainWindow: BrowserWindow | null = null
+
+// Load one of the two renderer pages: 'splash' (the cold-start splash, loaded first) or 'index'
+// (the app, loaded by app:splashDone). Dev serves both from the electron-vite dev server; a
+// packaged build has them side by side in out/renderer.
+export function loadPage(win: BrowserWindow, page: 'splash' | 'index'): void {
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    void win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/${page}.html`)
+  } else {
+    void win.loadFile(join(__dirname, `../renderer/${page}.html`))
+  }
+}
 
 export function setMainWindow(win: BrowserWindow | null): void {
   mainWindow = win

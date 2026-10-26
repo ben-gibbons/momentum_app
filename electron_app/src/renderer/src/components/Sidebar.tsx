@@ -4,7 +4,6 @@
 // selection via onNavigate; actual view switching is wired in Phase 3 — for now `active` controls
 // the highlighted item. Style values mirror the design exactly (token utilities + arbitrary px).
 import {
-  Activity,
   BarChart3,
   CalendarDays,
   HeartPulse,
@@ -16,15 +15,7 @@ import {
 } from 'lucide-react'
 import markUrl from '../assets/brand/momentum-mark.svg'
 
-export type NavId =
-  | 'daily'
-  | 'calendar'
-  | 'session'
-  | 'trends'
-  | 'logs'
-  | 'risk'
-  | 'distracted'
-  | 'settings'
+export type NavId = 'daily' | 'calendar' | 'trends' | 'logs' | 'risk' | 'distracted' | 'settings'
 
 interface NavItemDef {
   id: NavId
@@ -35,7 +26,6 @@ interface NavItemDef {
 const MAIN_ITEMS: NavItemDef[] = [
   { id: 'daily', icon: ListChecks, label: 'Daily tasks' },
   { id: 'calendar', icon: CalendarDays, label: 'Calendar' },
-  { id: 'session', icon: Activity, label: 'Current session' },
   { id: 'trends', icon: BarChart3, label: 'Productivity Trends' }
 ]
 const REFLECT_ITEMS: NavItemDef[] = [

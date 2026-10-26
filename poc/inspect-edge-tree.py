@@ -15,12 +15,30 @@
 #   Note its AutomationId — set ADDRESS_BAR_AUTO_ID in read-edge-url.py to that value.
 
 import sys
+import ctypes
+from ctypes import wintypes
 
 try:
     from pywinauto import Desktop
 except ImportError:
     print("pywinauto not found. Install it with: pip install pywinauto")
     sys.exit(1)
+
+def exe_name(pid):
+    # Basename of the process image, lowercase, or '' if it can't be queried (same as the sidecar).
+    kernel32 = ctypes.windll.kernel32
+    h = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not h:
+        return ''
+    try:
+        buf = ctypes.create_unicode_buffer(1024)
+        size = wintypes.DWORD(len(buf))
+        if not kernel32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size)):
+            return ''
+        return buf.value.rsplit('\\', 1)[-1].lower()
+    finally:
+        kernel32.CloseHandle(h)
+
 
 def find_controls(element, control_type, results=None):
     if results is None:
@@ -39,8 +57,9 @@ print("Make sure Microsoft Edge is open with a website loaded.\n")
 
 try:
     desktop = Desktop(backend='uia')
-    edge_windows = [w for w in desktop.windows()
-                    if 'microsoft' in w.window_text().lower() and 'edge' in w.window_text().lower()]
+    # Match by process, not title: an Edge Workspace window is titled by the workspace name with
+    # no "Microsoft Edge" suffix (the sidecar matches the same way).
+    edge_windows = [w for w in desktop.windows() if exe_name(w.process_id()) == 'msedge.exe']
     if not edge_windows:
         raise RuntimeError("No Edge window found — make sure Edge is open with a webpage loaded.")
 
@@ -55,12 +74,16 @@ try:
     if not edit_controls:
         print("No Edit controls found.")
     for ctrl in edit_controls:
-        title = ctrl.window_text()
+        title = ctrl.window_text()  # the control's accessible name ("Address and search bar")
         auto_id = ctrl.element_info.automation_id
-        print(f"Edit - '{title}' [AutomationId: '{auto_id}']")
+        try:
+            value = ctrl.get_value()  # the current URL for the address bar
+        except Exception:
+            value = ''
+        print(f"Edit - '{title}' [AutomationId: '{auto_id}'] value='{value}'")
 
     print("=" * 60)
-    print("\nThe address bar Edit control will have the current URL as its title.")
+    print("\nThe address bar Edit control is named 'Address and search bar' and its value is the URL.")
     print("Note its AutomationId and set ADDRESS_BAR_AUTO_ID in read-edge-url.py.")
 
 except Exception as e:

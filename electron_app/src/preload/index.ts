@@ -5,26 +5,45 @@
 // sync across this file, ipc.ts, and src/shared/types.ts. Never expose raw Node/Electron APIs.
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { DistractionEvent, LogInput, MomentumApi, RuleInput, TaskInput } from '../shared/types'
+import type {
+  DistractionEvent,
+  LogInput,
+  MomentumApi,
+  OpenTaskEvent,
+  RuleInput,
+  TaskInput,
+  TaskPatch
+} from '../shared/types'
 
 const api: MomentumApi = {
   tasks: {
     listDaily: (date?: number) => ipcRenderer.invoke('tasks:listDaily', date),
+    listDailyRange: (from: number, to: number) =>
+      ipcRenderer.invoke('tasks:listDailyRange', from, to),
     listWeekly: (weekStart?: number) => ipcRenderer.invoke('tasks:listWeekly', weekStart),
+    get: (taskId: number) => ipcRenderer.invoke('tasks:get', taskId),
     toggleComplete: (taskId: number) => ipcRenderer.invoke('tasks:toggleComplete', taskId),
     create: (input: TaskInput) => ipcRenderer.invoke('tasks:create', input),
+    update: (taskId: number, patch: TaskPatch) => ipcRenderer.invoke('tasks:update', taskId, patch),
+    remove: (taskId: number) => ipcRenderer.invoke('tasks:remove', taskId),
     addToDaily: (weeklyId: number, date: number) =>
       ipcRenderer.invoke('tasks:addToDaily', weeklyId, date)
   },
   taskSteps: {
-    toggle: (stepId: number) => ipcRenderer.invoke('taskSteps:toggle', stepId)
+    toggle: (stepId: number) => ipcRenderer.invoke('taskSteps:toggle', stepId),
+    add: (taskId: number, text: string, estMinutes?: number | null) =>
+      ipcRenderer.invoke('taskSteps:add', taskId, text, estMinutes),
+    remove: (stepId: number) => ipcRenderer.invoke('taskSteps:remove', stepId)
   },
   session: {
     getCurrent: () => ipcRenderer.invoke('session:getCurrent'),
     getTodayFocus: () => ipcRenderer.invoke('session:getTodayFocus')
   },
   trends: {
-    getWeek: () => ipcRenderer.invoke('trends:getWeek')
+    getWeek: (weekStart?: number) => ipcRenderer.invoke('trends:getWeek', weekStart),
+    getDay: (dayStart: number) => ipcRenderer.invoke('trends:getDay', dayStart),
+    getBreakdown: (from: number, to: number) => ipcRenderer.invoke('trends:getBreakdown', from, to),
+    getMonth: (monthStart: number) => ipcRenderer.invoke('trends:getMonth', monthStart)
   },
   logs: {
     list: () => ipcRenderer.invoke('logs:list'),
@@ -55,8 +74,7 @@ const api: MomentumApi = {
   app: {
     splashDone: () => ipcRenderer.invoke('app:splashDone'),
     notify: (title: string, body: string) => ipcRenderer.invoke('app:notify', title, body),
-    raiseDistraction: (event: DistractionEvent) =>
-      ipcRenderer.invoke('app:raiseDistraction', event)
+    raiseDistraction: (event: DistractionEvent) => ipcRenderer.invoke('app:raiseDistraction', event)
   },
   // Main → renderer push channels (prefixed push:). The wrapper hides the IpcRendererEvent and
   // returns an unsubscribe so a useEffect can clean up.
@@ -73,6 +91,20 @@ const api: MomentumApi = {
       ipcRenderer.on('push:monitoringPaused', listener)
       return () => {
         ipcRenderer.removeListener('push:monitoringPaused', listener)
+      }
+    },
+    onDayChanged: (cb: () => void) => {
+      const listener = (): void => cb()
+      ipcRenderer.on('push:dayChanged', listener)
+      return () => {
+        ipcRenderer.removeListener('push:dayChanged', listener)
+      }
+    },
+    onOpenTask: (cb: (e: OpenTaskEvent) => void) => {
+      const listener = (_e: IpcRendererEvent, event: OpenTaskEvent): void => cb(event)
+      ipcRenderer.on('push:openTask', listener)
+      return () => {
+        ipcRenderer.removeListener('push:openTask', listener)
       }
     }
   }

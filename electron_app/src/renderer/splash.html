@@ -1,0 +1,146 @@
+<!-- splash.html — the cold-start splash page, loaded by the main process before index.html.
+     This is design_system/brand/splash.html VERBATIM (keep it that way: re-copy the design file
+     rather than editing here) with exactly three changes: the CSP meta, the ../styles.css link
+     replaced by /src/splash.ts (tokens, fonts, the done timer), and the image path. -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta
+  http-equiv="Content-Security-Policy"
+  content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:"
+/>
+<title>Momentum</title>
+<script type="module" src="/src/splash.ts"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font-family: var(--font-ui); }
+
+  /* ============================================================
+     SPLASH — forest gradient + soft vignette + snowball loader
+     ============================================================ */
+  .vsplash {
+    position: relative; width: 1100px; height: 700px; overflow: hidden;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    user-select: none;
+    background: radial-gradient(70.7% 70.7% at 50% 36.75%, var(--green-750) 0%, var(--green-800) 52%, #234032 100%);
+    --v-track: rgba(220, 233, 221, .32);
+    --v-ballshadow:
+      inset -1.1px -1.6px 3.6px rgba(8,18,12,.30),
+      inset 1.1px 1.4px 2.9px rgba(255,255,255,.92),
+      0 3px 8px rgba(0,0,0,.42);
+  }
+
+  .v-head { position: absolute; top: 60px; left: 0; right: 0; display: flex; justify-content: center;
+    font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; white-space: nowrap;
+    color: rgb(169, 196, 175); }
+
+  .v-brand { display: flex; flex-direction: column; align-items: center; gap: 30px; position: relative; z-index: 2; }
+  .v-wm { display: inline-flex; align-items: center; gap: 12px; }
+  .v-mark { display: inline-flex; flex: 0 0 auto; width: 83px; height: 83px; color: var(--paper); }
+  .v-mark svg { width: 100%; height: 100%; display: block; }
+  .v-title { line-height: 1; font-family: var(--font-display); font-weight: 500; font-size: 64px;
+    letter-spacing: -.01em; color: var(--paper); text-box-trim: trim-both; text-box-edge: cap alphabetic; }
+
+  /* nudge the whole loading row +5px right so its visible ink centers under the wordmark */
+  .v-loading { display: inline-flex; align-items: center; gap: 12px; transform: translateX(5px); }
+  .v-cap { display: inline-flex; align-items: baseline; gap: 8px; }
+  .v-caption { line-height: 1; font-family: var(--font-display); font-style: italic;
+    font-weight: 400; font-size: 21px; color: rgb(169, 196, 175); }
+  .v-mini { position: relative; width: 150px; height: 56px; transform: translateY(25px); margin-left: -11px; }
+  .v-track-svg { position: absolute; top: 0; left: -234px; width: 384px; height: 56px; }
+
+  /* snowball roller — fades out cross-fading with dot 1, resets while invisible, then rolls + fades
+     in from the 4th beat (38.08%) to 100% = 2.000s, landing at its peak on the loop boundary. */
+  .v-roller {
+    position: absolute; top: 0; left: 0; width: 38px; height: 38px;
+    offset-path: path('M 10 11 C 41 11, 67 44, 140 50');
+    offset-rotate: 0deg; offset-anchor: 50% 100%;
+    transform-origin: 50% 100%; will-change: transform;
+    animation: vroll-fast 3.23s var(--ease-in-out) infinite;
+  }
+  @keyframes vroll-fast {
+    0%    { offset-distance: 100%; transform: scale(1);   opacity: 1; }
+    21.6% { offset-distance: 100%; transform: scale(1);   opacity: 0; }
+    22.3% { offset-distance: 0%;   transform: scale(.32); opacity: 0; }
+    37.5% { offset-distance: 0%;   transform: scale(.32); opacity: 0; }
+    38.08%{ offset-distance: 0%;   transform: scale(.32); opacity: .25; }
+    59.7% { opacity: 1; }
+    100%  { offset-distance: 100%; transform: scale(1);   opacity: 1; }
+  }
+
+  /* the ball is laid out large (152px) and counter-scaled to ~38px so it stays crisp */
+  .v-snow-img {
+    position: absolute; left: 50%; top: 50%;
+    width: 152px; height: 152px; margin: -76px 0 0 -76px;
+    object-fit: contain; will-change: transform; backface-visibility: hidden;
+    transform-origin: 50% 50%;
+    filter: drop-shadow(0 12px 24px rgba(56,44,24,.32));
+    animation: vspin-fast 3.23s var(--ease-in-out) infinite;
+  }
+  @keyframes vspin-fast {
+    0%    { transform: rotate(420deg) scale(.25); }
+    21.6% { transform: rotate(420deg) scale(.25); }
+    22.3% { transform: rotate(0deg)   scale(.25); }
+    38.08%{ transform: rotate(0deg)   scale(.25); }
+    100%  { transform: rotate(420deg) scale(.25); }
+  }
+
+  /* synced animated dots (white snow flecks) — same absolute pulse, expressed over the 3.23s loop */
+  .dots { display: inline-flex; gap: 7px; align-items: center; }
+  .dots i { width: 7px; height: 7px; border-radius: 50%; display: block;
+    background: #ffffff; box-shadow: 0 1px 2px rgba(56,44,24,.22); }
+  .vdots { transform: translateY(1px); }
+  .vdots i:nth-child(1) { animation: vdot1f 3.23s var(--ease-in-out) infinite; }
+  .vdots i:nth-child(2) { animation: vdot2f 3.23s var(--ease-in-out) infinite; }
+  .vdots i:nth-child(3) { animation: vdot3f 3.23s var(--ease-in-out) infinite; }
+  @keyframes vdot1f { 0%{opacity:.25} 21.6%{opacity:1} 25.4%{opacity:1} 47%{opacity:.25} 100%{opacity:.25} }
+  @keyframes vdot2f { 0%{opacity:.25} 12.7%{opacity:.25} 34.3%{opacity:1} 38.1%{opacity:1} 59.7%{opacity:.25} 100%{opacity:.25} }
+  @keyframes vdot3f { 0%{opacity:.25} 25.4%{opacity:.25} 47%{opacity:1} 50.8%{opacity:1} 72.4%{opacity:.25} 100%{opacity:.25} }
+
+  /* soft vignette — black, edges-in, opacity .10 */
+  .v-decor { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+  .v-vignette { position: absolute; inset: 0; box-shadow: inset 0 0 200px 40px rgba(0,0,0,.10); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .v-roller, .v-snow-img, .vdots i { animation: none !important; }
+    .v-roller { offset-distance: 100%; transform: scale(1); opacity: 1; }
+    .v-snow-img { transform: scale(.25); }
+    .vdots i { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+  <div class="vsplash">
+    <div class="v-decor"><div class="v-vignette"></div></div>
+    <div class="v-head">Finding your footing</div>
+    <div class="v-brand">
+      <div class="v-wm">
+        <span class="v-mark">
+          <svg viewBox="0 0 48 48" fill="none">
+            <path d="M9.1 19.34 L14.1 24 L9.1 28.66" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" opacity=".5" />
+            <path d="M18.1 17.47 L25.1 24 L18.1 30.53" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" opacity=".75" />
+            <path d="M29.1 14.86 L38.9 24 L29.1 33.14" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </span>
+        <span class="v-title">Momentum</span>
+      </div>
+      <div class="v-loading">
+        <span class="v-cap">
+          <span class="v-caption">Gathering momentum</span>
+          <span class="dots vdots"><i></i><i></i><i></i></span>
+        </span>
+        <span class="v-mini">
+          <svg class="v-track-svg" viewBox="-234 0 384 56" preserveAspectRatio="none">
+            <path d="M -220 12 C -123 12, -55 12, 10 12 C 41 12, 67 45, 140 51" fill="none" stroke="var(--v-track)" stroke-width="3" stroke-linecap="round" opacity="0.85" />
+          </svg>
+          <span class="v-roller">
+            <img class="v-snow-img" src="/src/assets/brand/snowball-new-w.png" alt="" />
+          </span>
+        </span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

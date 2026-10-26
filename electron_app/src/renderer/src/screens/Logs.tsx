@@ -103,7 +103,6 @@ export default function Logs({ onOpenLog, logFlowOpen }: LogsProps): React.JSX.E
           )}
         </div>
       </div>
-
     </main>
   )
 }

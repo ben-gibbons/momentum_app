@@ -1,0 +1,14 @@
+/* splash.css — page-level styles for splash.html only (the splash card's own CSS lives in the
+   HTML, verbatim from the design file). The window is exactly the card's 1100x700, so this just
+   makes sure nothing paper-coloured shows around it, ever, matching the window's backgroundColor. */
+html,
+body {
+  background: #234032;
+  overflow: hidden;
+}
+
+/* The variable Newsreader (splash.ts imports it) under the family name @fontsource-variable
+   registers; overrides typography.css's --font-display for this page only. */
+:root {
+  --font-display: 'Newsreader Variable', Georgia, 'Times New Roman', serif;
+}

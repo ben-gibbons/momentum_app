@@ -12,6 +12,7 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "test": "vitest run",
+    "test:electron": "node scripts/test-electron.mjs",
     "icon": "node scripts/make-icon.mjs",
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
@@ -25,6 +26,7 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "@fontsource-variable/newsreader": "^5.3.0",
     "@fontsource/hanken-grotesk": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/newsreader": "^5.2.10",

@@ -1,0 +1,18 @@
+# Normalise line endings: every text file is stored with LF and checked out with LF on every
+# machine, regardless of core.autocrlf. Added 2026-10-09 because autocrlf=true on Windows was
+# checking files out as CRLF while Prettier expects LF, producing thousands of "Delete ␍" lint
+# warnings that buried real findings.
+* text=auto eol=lf
+
+# Binary assets: never touch their bytes.
+*.png binary
+*.ico binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.db binary
+*.xlsx binary
+*.docx binary

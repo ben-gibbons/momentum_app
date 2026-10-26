@@ -153,8 +153,8 @@ export function seedDevFixtures(): void {
     const weekStart = weekStartMonday()
     const weeklyIds: Record<string, number> = {}
     const wStmt = db.prepare(
-      `INSERT INTO tasks (type, week_start, title, category, completed, completed_at)
-       VALUES ('weekly', ?, ?, ?, ?, ?)`
+      `INSERT INTO tasks (type, week_start, title, category, completed, completed_at, created_at)
+       VALUES ('weekly', ?, ?, ?, ?, ?, ?)`
     )
     for (const w of WEEKLY) {
       const res = wStmt.run(
@@ -162,7 +162,8 @@ export function seedDevFixtures(): void {
         w.title,
         w.category,
         w.completed,
-        w.completed ? startOfDay() : null
+        w.completed ? startOfDay() : null,
+        weekStart
       )
       weeklyIds[w.key] = res.lastInsertRowid as number
     }
@@ -173,8 +174,9 @@ export function seedDevFixtures(): void {
       'INSERT INTO task_steps (task_id, ordinal, text, est_minutes, completed, completed_at) VALUES (?, ?, ?, ?, ?, ?)'
     )
     const dStmtTask = db.prepare(
-      `INSERT INTO tasks (type, date, parent_task_id, title, category, due_date, completed, completed_at)
-       VALUES ('daily', ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO tasks (type, date, parent_task_id, title, category, due_date, completed,
+                          completed_at, created_at)
+       VALUES ('daily', ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     for (const d of DAILY) {
       const due = d.dueHour == null ? null : today + d.dueHour * 3600
@@ -187,11 +189,21 @@ export function seedDevFixtures(): void {
           d.title,
           d.category,
           d.completed,
-          d.completed ? startOfDay() : null
+          d.completed ? startOfDay() : null,
+          today
         ).lastInsertRowid as number
       }
-      // Completion lives on the weekly parent; the daily row's own flag stays 0.
-      const res = dStmtTask.run(today, parentId, d.title, d.category, due, 0, null)
+      // Completion lives on the daily row itself (D3); the weekly parent mirrors it above.
+      const res = dStmtTask.run(
+        today,
+        parentId,
+        d.title,
+        d.category,
+        due,
+        d.completed,
+        d.completed ? today : null,
+        today
+      )
       const taskId = res.lastInsertRowid as number
       const steps = STEPS[d.title]
       if (steps)
@@ -199,6 +211,14 @@ export function seedDevFixtures(): void {
           stepStmt.run(taskId, i + 1, s.text, s.mins, s.done, s.done ? today : null)
         )
     }
+
+    // One repeating series (V1 item 5) so the weekly list has a "0/N" example: a daily "Stretch"
+    // started this Monday. Only the weekly row is seeded — the daily routine (startDayChange, which
+    // runs after this seed in index.ts) generates today's and the rest of the week's daily rows.
+    db.prepare(
+      `INSERT INTO tasks (type, week_start, date, title, category, repeat_days, created_at)
+       VALUES ('weekly', ?, ?, 'Stretch', 'hobby', 127, ?)`
+    ).run(weekStart, weekStart, weekStart)
 
     // Sessions backing trends + current session.
     const todayIdx = Math.floor((today - weekStart) / DAY)

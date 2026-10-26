@@ -4,7 +4,7 @@
 // mirror the MomentumApi surface in src/shared/types.ts and the preload bridge. Repositories are
 // synchronous (better-sqlite3); ipcMain.handle wraps the return value in a promise for the renderer.
 import { ipcMain, BrowserWindow } from 'electron'
-import type { DistractionEvent, LogInput, RuleInput, TaskInput } from '../shared/types'
+import type { DistractionEvent, LogInput, RuleInput, TaskInput, TaskPatch } from '../shared/types'
 
 // App window size after the splash (the splash window is 1100x700, non-resizable).
 const APP_WIDTH = 1280
@@ -19,22 +19,49 @@ import * as rules from './repositories/classificationRules'
 import { notify } from './notify'
 import { raiseDistraction } from './distraction'
 import { setMonitoringEnabled } from './monitoring'
+import { rearm } from './reminders'
+import { loadPage } from './window'
+
+// A task mutation may add, move, or clear a reminder: re-read the next one after it.
+function thenRearm<T>(result: T): T {
+  rearm()
+  return result
+}
 
 export function registerIpc(): void {
   // Tasks
   ipcMain.handle('tasks:listDaily', (_e, date?: number) => tasks.listDaily(date))
+  ipcMain.handle('tasks:listDailyRange', (_e, from: number, to: number) =>
+    tasks.listDailyRange(from, to)
+  )
   ipcMain.handle('tasks:listWeekly', (_e, weekStart?: number) => tasks.listWeekly(weekStart))
-  ipcMain.handle('tasks:toggleComplete', (_e, taskId: number) => tasks.toggleComplete(taskId))
-  ipcMain.handle('tasks:create', (_e, input: TaskInput) => tasks.create(input))
+  ipcMain.handle('tasks:get', (_e, taskId: number) => tasks.get(taskId))
+  ipcMain.handle('tasks:toggleComplete', (_e, taskId: number) =>
+    thenRearm(tasks.toggleComplete(taskId))
+  )
+  ipcMain.handle('tasks:create', (_e, input: TaskInput) => thenRearm(tasks.create(input)))
+  ipcMain.handle('tasks:update', (_e, taskId: number, patch: TaskPatch) =>
+    thenRearm(tasks.update(taskId, patch))
+  )
+  ipcMain.handle('tasks:remove', (_e, taskId: number) => thenRearm(tasks.remove(taskId)))
   ipcMain.handle('tasks:addToDaily', (_e, weeklyId: number, date: number) =>
-    tasks.addToDaily(weeklyId, date)
+    thenRearm(tasks.addToDaily(weeklyId, date))
   )
   ipcMain.handle('taskSteps:toggle', (_e, stepId: number) => tasks.toggleStep(stepId))
+  ipcMain.handle('taskSteps:add', (_e, taskId: number, text: string, estMinutes?: number | null) =>
+    tasks.addStep(taskId, text, estMinutes)
+  )
+  ipcMain.handle('taskSteps:remove', (_e, stepId: number) => tasks.removeStep(stepId))
 
   // Session + trends
   ipcMain.handle('session:getCurrent', () => sessions.getCurrent())
   ipcMain.handle('session:getTodayFocus', () => sessions.getTodayFocus())
-  ipcMain.handle('trends:getWeek', () => sessions.getWeek())
+  ipcMain.handle('trends:getWeek', (_e, weekStart?: number) => sessions.getWeek(weekStart))
+  ipcMain.handle('trends:getDay', (_e, dayStart: number) => sessions.getDay(dayStart))
+  ipcMain.handle('trends:getBreakdown', (_e, from: number, to: number) =>
+    sessions.getBreakdown(from, to)
+  )
+  ipcMain.handle('trends:getMonth', (_e, monthStart: number) => sessions.getMonth(monthStart))
 
   // Procrastination logs
   ipcMain.handle('logs:list', () => logs.list())
@@ -72,7 +99,8 @@ export function registerIpc(): void {
   // The renderer shows the nudge for a pushed DistractionEvent, then asks for the window + toast.
   ipcMain.handle('app:raiseDistraction', (_e, event: DistractionEvent) => raiseDistraction(event))
 
-  // App window: grow the 1100x700 splash window into the resizable app window.
+  // App window: called by the splash page after its animation — grow the 1100x700 splash window
+  // into the resizable app window and load the app page in it.
   ipcMain.handle('app:splashDone', (e) => {
     const win = BrowserWindow.fromWebContents(e.sender)
     if (!win) return
@@ -82,5 +110,6 @@ export function registerIpc(): void {
     win.setMinimumSize(1024, 720)
     win.setSize(APP_WIDTH, APP_HEIGHT)
     win.center()
+    loadPage(win, 'index')
   })
 }
