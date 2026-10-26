@@ -52,7 +52,7 @@ Take the unpolished V1 build to a usable, mostly functioning desktop app with en
     - [x] Edge windows without an address bar (sites saved as apps, picture-in-picture, DevTools) are named from their title and classified as apps; the New Tab page is the app "Edge - New tab"; all Edge channels report as "Microsoft Edge"; verified live with a Hulu app window — completed 2026-10-09
 - [ ] 16. Npm audit warnings
     - [ ] Pre-existing transitive dev/build deps (vite/esbuild, tar via get-windows, undici, form-data) — not shipped in Electron runtime; revisit cautiously (native-module rebuild risk)
-- [ ] 17. Delete github branch or rename to new feature branch
+- [x] 17. Delete github branch or rename to new feature branch — completed 2026-10-26 (`v1-deferred-p2` deleted locally and on GitHub after PR #3 merged; `v1-deferred-p3` created from `main`)
 - [ ] 18. Security check, crash/edge case testing (fable)
 - [ ] 19. Add V1.0 note to splash screen
 
