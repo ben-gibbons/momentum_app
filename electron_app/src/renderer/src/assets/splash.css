@@ -6,3 +6,9 @@ body {
   background: #234032;
   overflow: hidden;
 }
+
+/* The variable Newsreader (splash.ts imports it) under the family name @fontsource-variable
+   registers; overrides typography.css's --font-display for this page only. */
+:root {
+  --font-display: 'Newsreader Variable', Georgia, 'Times New Roman', serif;
+}
