@@ -146,7 +146,7 @@ Do not complete until after starting new job.
 - [ ] 1. Installer + auto-updater Mac and Windows
 - [ ] 2. Windows/Mac app store release or distribution packaging
 - [ ] 3. Bug testing, security bulletproofing, RAM/CPU performance (short and long term use), Chromium package size
-- [ ] 4. AutomationId resilience (auto-diagnostic for Edge UI changes)
+- [x] 4. AutomationId resilience (auto-diagnostic for Edge UI changes) — completed 2026-10-26 for id renumbering (the sidecar falls back to the address bar's accessible name and adopts the new id; Edge 155 moved `view_1021` → `view_1017`). Not covered: a renamed control or a non-English Edge UI
 - [ ] 5. "Hardcore mode" (call me out on my bullshit, be completely honest with what I need to change and give me steps to get there)
 
 ---

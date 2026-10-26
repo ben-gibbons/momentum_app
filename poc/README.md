@@ -40,7 +40,7 @@ A one-time diagnostic tool. Run this if Edge URL reading stops working after an 
 python inspect-edge-tree.py
 ```
 
-Look for an `Edit` control whose value is the current URL. If its `AutomationId` differs from `view_1021`, update `ADDRESS_BAR_AUTO_ID` in `read-edge-url.py`.
+Look for the `Edit` control named "Address and search bar" whose value is the current URL. If its `AutomationId` differs from `view_1017`, update `ADDRESS_BAR_AUTO_ID` in `read-edge-url.py` (and in the app's copy under `electron_app/src/main/`, which also recovers on its own by looking the control up by that name).
 
 ---
 
