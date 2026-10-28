@@ -40,7 +40,7 @@ export function Hero({
           <span
             role="button"
             tabIndex={0}
-            aria-label="Open Productivity Trends"
+            aria-label={`${formatHM(focusedMinutes)} focused today — open Productivity Trends`}
             onClick={onOpenTrends}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {

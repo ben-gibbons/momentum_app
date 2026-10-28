@@ -54,7 +54,7 @@ Take the unpolished V1 build to a usable, mostly functioning desktop app with en
     - [ ] Pre-existing transitive dev/build deps (vite/esbuild, tar via get-windows, undici, form-data) — not shipped in Electron runtime; revisit cautiously (native-module rebuild risk)
 - [x] 17. Delete github branch or rename to new feature branch — completed 2026-10-26 (`v1-deferred-p2` deleted locally and on GitHub after PR #3 merged; `v1-deferred-p3` created from `main`)
 - [ ] 18. Security check, crash/edge case testing (fable)
-- [ ] 19. Add V1.0 note to splash screen
+- [x] 19. Add V1.0 note to splash screen — completed 2026-10-27 (muted "v1.0" bottom-right of the splash card; `electron.vite.config.ts` injects `package.json` `version` as `__APP_VERSION__`, `splash.ts` writes it as major.minor)
 
 ---
 

@@ -40,6 +40,7 @@ Code that exists but is intentionally inert, partial, or stubbed — left open o
 
 - **`Category` type vs free-text `category` column** — `src/shared/types.ts` keeps `Category` as the four known labels (tag colours exist for those) while migration 7 dropped the column's `CHECK`, so the DB accepts any text (NULL = none). An editable category list (V2) needs no migration — only the type, the dialog select, and the tag colours change.
 - **`session.getCurrent()` / `getTodayFocus()` = today's window** — `src/main/repositories/sessions.ts`. "Current session" is approximated as *today's* totals (a V1 simplification), not a real per-app-launch session boundary. Waiting on a proper session definition.
+- **Unused log columns** — `log_steps.predicted_difficulty` / `actual_difficulty`, `predicted_satisfaction` / `actual_satisfaction` and `procrastination_logs.takeaways` stay in the schema; the four-step log flow (2026-10-27) writes NULL into them and the log detail view shows them only for old logs that have values. A V3 journal / reflection feature may reuse them.
 - **Timers are in-memory** — `src/renderer/src/lib/timers.tsx`. Running timers don't survive an app restart; persistence is unplanned until a need appears.
 
 ## Running the POC

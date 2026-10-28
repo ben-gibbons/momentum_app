@@ -332,7 +332,6 @@ function SettingsForm({ saved, onSaved }: SettingsFormProps): React.JSX.Element 
                   <span className="text-[13px] font-semibold text-body">{f.label}</span>
                   <div className="flex items-center gap-3">
                     <NumberField
-                      label=""
                       compact
                       value={durations[f.key].min}
                       onChange={(v) =>
@@ -341,7 +340,6 @@ function SettingsForm({ saved, onSaved }: SettingsFormProps): React.JSX.Element 
                     />
                     <span className="text-[13px] text-muted">min</span>
                     <NumberField
-                      label=""
                       compact
                       value={durations[f.key].sec}
                       step={POLL_SECONDS}

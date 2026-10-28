@@ -80,12 +80,9 @@ export default function RiskFactors({
   return (
     <main className="h-screen overflow-y-auto bg-paper">
       <div className="mx-auto max-w-[980px] px-10 pb-16 pt-9">
-        {/* View header (recreates .mm-view__head) */}
+        {/* View header (recreates .mm-view__head, minus the eyebrow — dropped 2026-10-27) */}
         <header className="mb-[26px]">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
-            A gentle check-in
-          </div>
-          <h1 className="mt-[6px] font-display text-[38px] font-medium leading-[1.08] tracking-[-0.02em] text-ink">
+          <h1 className="mt-0 font-display text-[38px] font-medium leading-[1.08] tracking-[-0.02em] text-ink">
             What&apos;s running low?
           </h1>
           <p className="mt-2 max-w-[540px] text-[17px] text-muted">

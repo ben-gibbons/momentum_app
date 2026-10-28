@@ -56,14 +56,16 @@ function defaultLabel(ts: number, riskFactor?: string | null): string {
 export function list(): LogListItem[] {
   const rows = getDb()
     .prepare(
-      'SELECT id, created_at, label, source, emotion FROM procrastination_logs ORDER BY created_at DESC'
+      `SELECT id, created_at, label, source, emotion, task_text FROM procrastination_logs
+       ORDER BY created_at DESC`
     )
-    .all() as Pick<LogRow, 'id' | 'created_at' | 'label' | 'source' | 'emotion'>[]
+    .all() as Pick<LogRow, 'id' | 'created_at' | 'label' | 'source' | 'emotion' | 'task_text'>[]
   return rows.map((r) => ({
     id: r.id,
     label: r.label,
     source: r.source,
     emotion: r.emotion,
+    taskText: r.task_text,
     createdAt: r.created_at
   }))
 }
