@@ -119,12 +119,9 @@ export default function Calendar({
       {/* Much wider than the other screens (920px) so the Week / Month grids get room, but still
           with the same 48px gutters at the window edges (AP1). */}
       <div className="mx-auto max-w-[1480px] px-12 pb-14 pt-9">
-        {/* .mm-view__head — eyebrow + display title + calm sub-line */}
+        {/* .mm-view__head — display title + calm sub-line (page eyebrows were dropped 2026-10-27) */}
         <header className="mb-[26px]">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
-            Your week
-          </div>
-          <h1 className="mt-[6px] font-display text-[38px] font-medium leading-[1.08] tracking-[-0.02em] text-ink">
+          <h1 className="mt-0 font-display text-[38px] font-medium leading-[1.08] tracking-[-0.02em] text-ink">
             Calendar
           </h1>
           <p className="mt-2 max-w-[540px] text-[17px] text-muted">

@@ -203,7 +203,8 @@ CREATE TABLE procrastination_logs (
   belief_self_control  INTEGER,           -- 0–100
   belief_after         INTEGER,           -- 0–100
   takeaways            TEXT,
-  risk_factor          TEXT               -- NULL unless source = 'risk_factor'
+  risk_factor          TEXT,              -- NULL unless source = 'risk_factor'
+  completed            INTEGER NOT NULL DEFAULT 1  -- migration 11: 0 = closed part-way through the flow (the Logs list says "In progress" and clicking the row resumes it); Finish sets 1
 );
 ```
 
@@ -222,6 +223,8 @@ CREATE TABLE log_steps (
   actual_satisfaction   INTEGER            -- 0–100
 );
 ```
+
+The four-step log flow (2026-10-27) fills `description`, `predicted_time_mins` and `actual_time_mins` (the last also editable afterwards from the log's detail view) and writes NULL into the difficulty / satisfaction columns and `procrastination_logs.takeaways`. Those columns stay for a V3 journal / reflection feature; the detail view shows them only for older logs that have values.
 
 ### `risk_factors`
 ```sql
@@ -285,18 +288,21 @@ CREATE TABLE settings (
 1. **`initSchema()`** — the frozen **v0 baseline**: idempotent `CREATE TABLE IF NOT EXISTS` for `sessions`, `tasks`, `task_steps`, `procrastination_logs`, `log_steps`, `risk_factors`, `risk_factor_catalog`, `distortions`, `settings`. Nothing is ever added here.
 2. **`migrate()`** — reads `PRAGMA user_version` (0 on a fresh file) and applies `MIGRATIONS[i]` for every `i >= user_version`, bumping the version after each. Each step runs inside a single transaction **with the version bump**, so a failed step leaves the file untouched at its previous version. A step that rebuilds a table other tables reference is written as `{ ownTransaction: true, run }`: the runner turns `PRAGMA foreign_keys` **off outside** the transaction (the pragma is a no-op inside one), runs the step, requires `PRAGMA foreign_key_check` to come back empty before the version bump (a reference the rebuild broke rolls the whole step back), and turns enforcement back on in a `finally`. A failed migration fails every launch; `getDb()` closes the handle and throws an error naming the file (in dev the fix is deleting it — fixtures regenerate).
 
-The eight shipped steps (`user_version` after each in brackets):
+The eleven shipped steps (`user_version` after each in brackets):
 
 | Step | What it does |
 |---|---|
 | 0 → 1 | Creates `classification_rules`, adds `sessions.host` (guarded `ALTER TABLE` — SQLite has no `ADD COLUMN IF NOT EXISTS`), creates `idx_sessions_start_time`, backfills `host` from `url` for existing rows. |
 | 1 → 2 | No-op. An unshipped dev step that cleared an earlier seed; kept so dev DBs already at version 2 line up with fresh ones. |
-| 2 → 3 | Seeds the default Productive / Unproductive starter lists into `classification_rules` with `INSERT OR IGNORE` (a user who removed one isn't re-seeded; an existing pattern keeps its own classification). Contents are a placeholder pending the product decision in `docs/roadmap.md`. |
+| 2 → 3 | Seeds the default Productive / Unproductive starter lists into `classification_rules` with `INSERT OR IGNORE` (a user who removed one isn't re-seeded; an existing pattern keeps its own classification). Step 10 adds the rest of the V1 default Productive list. |
 | 3 → 4 | Adds `sessions.app_key` (guarded `ALTER TABLE`) and backfills it with the JS-lowercased `app`. |
 | 4 → 5 | Momentum's own window becomes a normal app named "Momentum App": adds the `('app', 'momentum app') → productive` rule, renames rows the old poller recorded under `electron` / `momentum`, and reclassifies their not-sure rows to productive. |
 | 5 → 6 | Splits the single `popup_cooldown` setting into `cooldown_unproductive` and `cooldown_notsure` (both carry the old value) and deletes the old key. |
 | 6 → 7 | **Rebuilds `tasks`** (`ownTransaction`) for V1 item 5 — SQLite's 12-step copy / drop / rename, ids preserved so `task_steps.task_id` and `parent_task_id` still line up: drops the `category` CHECK (free text, NULL = none), adds `repeat_days`, `repeat_until`, `carried_from`, `risk_factor_id`, creates the five indexes, and backfills `completed` onto every daily whose weekly parent was already done (completion moved to the daily row). Skips the copy if `tasks` already has `repeat_days` (a crash between rename and version bump). |
 | 7 → 8 | Adds `tasks.created_at` ("Created on" in the edit dialog) and backfills it from `date`, else `week_start`. |
+| 8 → 9 | Static reference data ships with the app (it was dev-seed only, so a packaged install had an empty distortion dropdown): the nine default `risk_factor_catalog` rows (`INSERT OR IGNORE` — `label` is UNIQUE) and the ten Burns `distortions`, inserted only when that table is empty (no unique column; a dev DB already had them). |
+| 9 → 10 | The V1 default Productive list decided 2026-10-27: adds the Outlook / Microsoft Outlook / Microsoft Teams / Slack / Zoom Meetings app rules and `linkedin.com` with `INSERT OR IGNORE` (a user's own rule for one of these wins), and — like step 5 and Settings' `rules.add()` — reclassifies the not-sure sessions each landed rule covers (`app_key` match, or `host` at a dot boundary). |
+| 10 → 11 | Adds `procrastination_logs.completed` (`NOT NULL DEFAULT 1`, so every existing log counts as finished). The log flow writes 0 when the X closes an unfinished log after at least one step, and a risk-factor log is created at 0 until its flow is finished. |
 
 **The rule**: never edit the baseline or a shipped step. Any schema change — a new table, a new column, a data fix, a seed — is a new function **appended** to `MIGRATIONS`. `ALTER TABLE ... ADD COLUMN` has no `IF NOT EXISTS`, so guard it with `PRAGMA table_info` as steps 1 and 4 do. Dropping a constraint or adding a column with `REFERENCES` needs a table rebuild — use the `ownTransaction` form as step 7 does.
 
@@ -306,4 +312,4 @@ The eight shipped steps (`user_version` after each in brackets):
 
 New tables and columns go in a new `MIGRATIONS` step in `db.ts`, not in `initSchema()` (see Migrations above). All SQL lives in `db.ts` (schema) or `src/main/repositories/*` (queries) — nothing else touches the DB.
 
-**Dev seeds**: in dev, `seed.ts` populates fixture data on first launch (guarded by an empty `settings` table), after `getDb()` has already run the migrations. Its not-sure session fixtures use `app = 'Desktop'` (excluded from the Settings reclassify list, so dev isn't asked to classify "Seed"); productive/unproductive fixtures keep the `Seed` marker. The default Productive / Unproductive lists are **not** seeded here — migration 3 inserts them, so they exist in packaged builds too.
+**Dev seeds**: in dev, `seed.ts` populates fixture data on first launch (guarded by an empty `settings` table), after `getDb()` has already run the migrations. Its not-sure session fixtures use `app = 'Desktop'` (excluded from the Settings reclassify list, so dev isn't asked to classify "Seed"); productive/unproductive fixtures keep the `Seed` marker. The default Productive / Unproductive lists, the risk-factor catalog and the distortion list are **not** seeded here — migrations 3, 9 and 10 insert them, so they exist in packaged builds too.

@@ -41,7 +41,7 @@ npm run typecheck
 
 ```bash
 npm run build:win      # build + electron-builder (Windows)
-npm run build:unpack   # build + unpacked app at dist/win-unpacked/Momentum.exe
+npm run build:unpack   # build + unpacked app at dist/win-unpacked/Momentum.exe (unsigned — signing is a V4 item; Smart App Control blocks unsigned exes when it is on)
 npm run icon           # regenerate build/icon.ico (16/32/48/256) from build/icon.png
 ```
 
@@ -80,9 +80,9 @@ src/
     splash.html           # The cold-start splash page: design_system/brand/splash.html verbatim (re-copy, don't edit)
     src/
       splash.ts           # splash.html's script: tokens + fonts, then app:splashDone after one 3.23 s loop
-      App.tsx             # Sidebar routing shell; mounts Nudge + the log overlay; TimersProvider; push:dayChanged / push:openTask
+      App.tsx             # Sidebar routing shell; mounts Nudge + the log overlay; TimersProvider; push:dayChanged / push:openTask / push:openTimer (TimerDone dialog)
       lib/                # api accessor (api.ts), useAsync hook, formatters, timers store (timers.tsx)
-      components/         # presentational components; RangeNav; log/, risk/, settings/ subfolders; TimersTile
+      components/         # presentational components; RangeNav; log/ (fields, Stepper, Timer, LogReview, LogDetail), risk/, settings/ subfolders; TimersTile, TimerDone
         tasks/            # TaskDialog (create / edit / delete / stop repeating), RepeatPicker, WeekdayPicker, StepsEditor
         calendar/         # WeekView, DayView, MonthView, WeeklyList, shared.ts (labels, keys)
         session/          # TrendsChart, MonthChart, BreakdownList, StatBar, SessionStatGrid
@@ -114,7 +114,7 @@ Main-process edits are not hot-reloaded by `npm run dev`; restart the app to pic
 ## Known Stubs (intentionally inert)
 
 - **Timers are in-memory** — `lib/timers.tsx`; running timers don't survive an app restart.
-- **Default Productive / Unproductive lists** — migration 3 seeds a placeholder starter set; final contents are an open decision (roadmap V1 #1).
+- **Unused log columns** — `log_steps.predicted_difficulty` / `actual_difficulty` / `predicted_satisfaction` / `actual_satisfaction` and `procrastination_logs.takeaways`: the four-step log flow writes NULL; `LogReview` shows them only for older logs that have values.
 
 ## Data Storage
 

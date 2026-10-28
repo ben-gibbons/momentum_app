@@ -6,7 +6,7 @@
 // Controlled components only — value in, onChange out; the screen owns all state.
 
 interface FieldShellProps {
-  label: string
+  label?: string // omitted (or empty) when the step heading itself is the prompt — no label row
   children: React.ReactNode
 }
 
@@ -14,14 +14,14 @@ interface FieldShellProps {
 function FieldShell({ label, children }: FieldShellProps): React.JSX.Element {
   return (
     <label className="flex flex-col gap-[7px]">
-      <span className="text-[13px] font-semibold text-body">{label}</span>
+      {label && <span className="text-[13px] font-semibold text-body">{label}</span>}
       {children}
     </label>
   )
 }
 
 interface TextFieldProps {
-  label: string
+  label?: string
   value: string
   onChange: (value: string) => void
   placeholder?: string
@@ -46,7 +46,7 @@ export function TextField({
 }
 
 interface TextAreaFieldProps {
-  label: string
+  label?: string
   value: string
   onChange: (value: string) => void
   placeholder?: string
@@ -149,7 +149,7 @@ export function SliderField({ label, value, onChange }: SliderFieldProps): React
 }
 
 interface NumberFieldProps {
-  label: string
+  label?: string
   value: number | null
   onChange: (value: number | null) => void
   placeholder?: string

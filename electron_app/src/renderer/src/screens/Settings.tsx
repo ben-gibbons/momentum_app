@@ -135,15 +135,12 @@ export default function Settings(): React.JSX.Element {
     <main className="h-screen overflow-y-auto bg-paper">
       {/* Narrower than the other screens (920px) — the cards read better at this width. */}
       <div className="mx-auto max-w-[800px] px-12 pb-14 pt-9">
-        {/* .mm-view__head — eyebrow + display title + calm sub-line */}
+        {/* .mm-view__head — display title + calm sub-line (page eyebrows were dropped 2026-10-27) */}
         <header className="mb-[26px]">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
-            Preferences
-          </div>
-          <h1 className="mt-[6px] font-display text-[38px] font-medium leading-[1.08] tracking-[-0.02em] text-ink">
+          <h1 className="mt-0 font-display text-[38px] font-medium leading-[1.08] tracking-[-0.02em] text-ink">
             Settings
           </h1>
-          <p className="mt-2 max-w-[540px] text-[17px] text-muted">
+          <p className="mt-2 text-[17px] text-muted">
             Tune what counts as focus and when Momentum checks in. Changes save as you go.
           </p>
         </header>
@@ -156,7 +153,7 @@ export default function Settings(): React.JSX.Element {
                 time, it doesn't block anything. */}
             <RuleListEditor
               title="Productive"
-              caption="Time here counts as productive."
+              caption="Time here counts as productive. Make sure these items are strictly tools/websites you use for completing your work. For example, while Spotify can help your focus, it does not belong here because your presentation is completed in PowerPoint."
               disabled={!monitoring}
               classification={1}
               rules={allRules.filter((r) => r.classification === 1)}
@@ -167,7 +164,7 @@ export default function Settings(): React.JSX.Element {
 
             <RuleListEditor
               title="Unproductive"
-              caption="Time here counts as unproductive."
+              caption="Time here counts as unproductive. These apps/sites actively take you away from your work."
               disabled={!monitoring}
               classification={2}
               rules={allRules.filter((r) => r.classification === 2)}
@@ -335,7 +332,6 @@ function SettingsForm({ saved, onSaved }: SettingsFormProps): React.JSX.Element 
                   <span className="text-[13px] font-semibold text-body">{f.label}</span>
                   <div className="flex items-center gap-3">
                     <NumberField
-                      label=""
                       compact
                       value={durations[f.key].min}
                       onChange={(v) =>
@@ -344,7 +340,6 @@ function SettingsForm({ saved, onSaved }: SettingsFormProps): React.JSX.Element 
                     />
                     <span className="text-[13px] text-muted">min</span>
                     <NumberField
-                      label=""
                       compact
                       value={durations[f.key].sec}
                       step={POLL_SECONDS}

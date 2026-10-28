@@ -2,9 +2,11 @@
 // Runs in a privileged context between main and renderer. Exposes APIs to the renderer via
 // contextBridge. Builds the typed window.api surface (MomentumApi) where each method is a thin
 // ipcRenderer.invoke onto a channel registered in src/main/ipc.ts — channel names must stay in
-// sync across this file, ipc.ts, and src/shared/types.ts. Never expose raw Node/Electron APIs.
+// sync across this file, ipc.ts, and src/shared/types.ts. Never expose raw Node/Electron APIs —
+// window.api is the whole surface (the scaffold's window.electron, a raw ipcRenderer wrapper, was
+// dropped 2026-10-28; it also kept the preload from loading under the renderer sandbox). The
+// renderer runs sandboxed (index.ts), so only `electron` may be required here.
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
 import type {
   DistractionEvent,
   LogInput,
@@ -49,7 +51,8 @@ const api: MomentumApi = {
     list: () => ipcRenderer.invoke('logs:list'),
     get: (id: number) => ipcRenderer.invoke('logs:get', id),
     create: (input: LogInput) => ipcRenderer.invoke('logs:create', input),
-    update: (id: number, input: LogInput) => ipcRenderer.invoke('logs:update', id, input)
+    update: (id: number, input: LogInput) => ipcRenderer.invoke('logs:update', id, input),
+    remove: (id: number) => ipcRenderer.invoke('logs:remove', id)
   },
   riskFactors: {
     listCatalog: () => ipcRenderer.invoke('riskFactors:listCatalog'),
@@ -74,6 +77,8 @@ const api: MomentumApi = {
   app: {
     splashDone: () => ipcRenderer.invoke('app:splashDone'),
     notify: (title: string, body: string) => ipcRenderer.invoke('app:notify', title, body),
+    notifyTimer: (timerId: string, label: string) =>
+      ipcRenderer.invoke('app:notifyTimer', timerId, label),
     raiseDistraction: (event: DistractionEvent) => ipcRenderer.invoke('app:raiseDistraction', event)
   },
   // Main → renderer push channels (prefixed push:). The wrapper hides the IpcRendererEvent and
@@ -106,20 +111,20 @@ const api: MomentumApi = {
       return () => {
         ipcRenderer.removeListener('push:openTask', listener)
       }
+    },
+    onOpenTimer: (cb: (timerId: string) => void) => {
+      const listener = (_e: IpcRendererEvent, timerId: string): void => cb(timerId)
+      ipcRenderer.on('push:openTimer', listener)
+      return () => {
+        ipcRenderer.removeListener('push:openTimer', listener)
+      }
     }
   }
 }
 
-if (process.contextIsolated) {
-  try {
-    contextBridge.exposeInMainWorld('electron', electronAPI)
-    contextBridge.exposeInMainWorld('api', api)
-  } catch (error) {
-    console.error(error)
-  }
-} else {
-  // @ts-ignore (define in dts)
-  window.electron = electronAPI
-  // @ts-ignore (define in dts)
-  window.api = api
+// contextIsolation is always on (index.ts), so the bridge is the only way in.
+try {
+  contextBridge.exposeInMainWorld('api', api)
+} catch (error) {
+  console.error(error)
 }

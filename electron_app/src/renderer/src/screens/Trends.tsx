@@ -287,16 +287,13 @@ export default function Trends(): React.JSX.Element {
       {/* Half the gutter the other screens' 920px column leaves: 24px + a quarter of the slack
           (instead of 48px + half), so the cards are wider at every window size (AP8). */}
       <div className="mx-auto w-full px-[max(24px,calc(24px_+_(100%_-_920px)_/_4))] pb-14 pt-9">
-        {/* .mm-view__head — eyebrow + display title + calm sub-line */}
+        {/* .mm-view__head — display title + calm sub-line (page eyebrows were dropped 2026-10-27) */}
         <header className="mb-[26px]">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
-            Your time
-          </div>
-          <h1 className="mt-[6px] font-display text-[38px] font-medium leading-[1.08] tracking-[-0.02em] text-ink">
+          <h1 className="mt-0 font-display text-[38px] font-medium leading-[1.08] tracking-[-0.02em] text-ink">
             Where the day went
           </h1>
           <p className="mt-2 max-w-[540px] text-[17px] text-muted">
-            Honest numbers, no judgment. Notice the patterns.
+            Honest numbers, notice the patterns.
           </p>
         </header>
 

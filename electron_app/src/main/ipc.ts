@@ -20,7 +20,7 @@ import { notify } from './notify'
 import { raiseDistraction } from './distraction'
 import { setMonitoringEnabled } from './monitoring'
 import { rearm } from './reminders'
-import { loadPage } from './window'
+import { getMainWindow, loadPage } from './window'
 
 // A task mutation may add, move, or clear a reminder: re-read the next one after it.
 function thenRearm<T>(result: T): T {
@@ -68,6 +68,7 @@ export function registerIpc(): void {
   ipcMain.handle('logs:get', (_e, id: number) => logs.get(id))
   ipcMain.handle('logs:create', (_e, input: LogInput) => logs.create(input))
   ipcMain.handle('logs:update', (_e, id: number, input: LogInput) => logs.update(id, input))
+  ipcMain.handle('logs:remove', (_e, id: number) => logs.remove(id))
 
   // Risk factors
   ipcMain.handle('riskFactors:listCatalog', () => riskFactors.listCatalog())
@@ -96,6 +97,13 @@ export function registerIpc(): void {
 
   // OS toast (notify() coerces + clamps the strings).
   ipcMain.handle('app:notify', (_e, title: string, body: string) => notify(title, body))
+  // A timer's "Time's up" toast: clicking it brings the window forward (notify does that) and
+  // pushes the timer's id so the renderer opens the timer-done dialog for it.
+  ipcMain.handle('app:notifyTimer', (_e, timerId: string, label: string) =>
+    notify("Time's up", label, () =>
+      getMainWindow()?.webContents.send('push:openTimer', String(timerId))
+    )
+  )
   // The renderer shows the nudge for a pushed DistractionEvent, then asks for the window + toast.
   ipcMain.handle('app:raiseDistraction', (_e, event: DistractionEvent) => raiseDistraction(event))
 

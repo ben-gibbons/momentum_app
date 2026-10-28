@@ -13,8 +13,8 @@
 // risk_factor_catalog (selectable default list + user-created custom factors), distortions
 // (static Burns reference list), and settings (greeting name, popup thresholds, toggles).
 // Everything after the v0 baseline arrives via MIGRATIONS below (classification_rules, sessions.host
-// and app_key, the default lists, the per-class cooldown settings) — see docs/database-overview.md
-// "Migrations".
+// and app_key, the default lists, the per-class cooldown settings, the static risk-factor catalog
+// and distortion list, procrastination_logs.completed) — see docs/database-overview.md "Migrations".
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import { join } from 'path'
@@ -317,12 +317,89 @@ const MIGRATIONS: (Step | { ownTransaction: true; run: Step })[] = [
       ALTER TABLE tasks ADD COLUMN created_at INTEGER;
       UPDATE tasks SET created_at = COALESCE(date, week_start);
     `)
+  },
+  // v8 → v9: static reference data ships with the app instead of the dev-only seed, so a fresh
+  // packaged install has a risk-factor catalog and the distortion dropdown isn't empty (P3-3).
+  // The catalog label is UNIQUE, so INSERT OR IGNORE; distortions has no unique column, so it is
+  // filled only when empty (a dev DB already has the rows from the old seed).
+  (database) => {
+    const rf = database.prepare(
+      'INSERT OR IGNORE INTO risk_factor_catalog (label, is_custom, created_at) VALUES (?, 0, NULL)'
+    )
+    for (const label of RISK_FACTOR_CATALOG) rf.run(label)
+    const count = database.prepare('SELECT COUNT(*) AS n FROM distortions').get() as { n: number }
+    if (count.n === 0) {
+      const d = database.prepare('INSERT INTO distortions (ordinal, label) VALUES (?, ?)')
+      DISTORTIONS.forEach((label, i) => d.run(i + 1, label))
+    }
+  },
+  // v9 → v10: the V1 default Productive list grew (P3-1: Outlook, Teams, Slack, Zoom, LinkedIn).
+  // Same shape as migration 3 (OR IGNORE: a user who already sorted one of these keeps their own
+  // classification), and like migration 5 / rules.add() a rule that did land reclassifies the
+  // not-sure sessions it covers, so past Trends totals and the "Not sure yet" list agree with it.
+  (database) => {
+    const insert = database.prepare(
+      `INSERT OR IGNORE INTO classification_rules (kind, pattern, classification, created_at)
+       VALUES (?, ?, 1, ?)`
+    )
+    // Same match semantics as the classifier (see rules.add): exact app_key, or host at a dot
+    // boundary. The bound site patterns contain no LIKE wildcards, so no escaping is needed.
+    const reclassifyApp = database.prepare(
+      'UPDATE sessions SET classification = 1 WHERE classification = 3 AND app_key = ?'
+    )
+    const reclassifySite = database.prepare(
+      `UPDATE sessions SET classification = 1
+       WHERE classification = 3 AND (host = ? OR host LIKE '%.' || ?)`
+    )
+    const now = Math.floor(Date.now() / 1000)
+    for (const [kind, pattern] of PRODUCTIVE_ADDED_V10) {
+      if (insert.run(kind, pattern, now).changes === 0) continue // user's own rule wins
+      if (kind === 'app') reclassifyApp.run(pattern)
+      else reclassifySite.run(pattern, pattern)
+    }
+  },
+  // v10 → v11: procrastination_logs.completed — a log closed part-way through the flow (after at
+  // least one step) is saved as in-progress (0) so it can be resumed from the Logs list; Finish
+  // sets 1. Every log that already exists was saved by Finish, hence DEFAULT 1.
+  (database) => {
+    database.exec(
+      'ALTER TABLE procrastination_logs ADD COLUMN completed INTEGER NOT NULL DEFAULT 1'
+    )
   }
 ]
 
-// Starter lists seeded by migration 3. PLACEHOLDER CONTENTS — the final set is an open product
-// decision (see docs/roadmap.md, V1 item 1). Site patterns are bare hosts; app patterns are the
-// lowercase get-windows owner.name.
+// Static reference data, inserted by migration 9 (and so present in a packaged install).
+// Selectable risk factors (the user adds custom ones on top) and Burns' ten cognitive distortions
+// in list order, from the design data contract (design_system/interactive-flows/data.js).
+const RISK_FACTOR_CATALOG = [
+  'Sleep',
+  'Water',
+  'Food',
+  'Medication',
+  'Exercise',
+  'Social connection',
+  'Going outside',
+  'Fun activities',
+  'Sense of accomplishment'
+]
+const DISTORTIONS = [
+  'All-or-nothing thinking',
+  'Overgeneralization',
+  'Mental filter',
+  'Disqualifying the positive',
+  'Jumping to conclusions',
+  'Magnification or minimization',
+  'Emotional reasoning',
+  'Should statements',
+  'Labeling and mislabeling',
+  'Personalization'
+]
+
+// The V1 default Productive / Unproductive lists (decided 2026-10-27) = the migration-3 starter
+// set below plus PRODUCTIVE_ADDED_V10, written by migration 10 (every DB, fresh or existing, runs
+// both; a shipped step's data is never edited). Site patterns are bare hosts; app patterns are
+// the lowercase get-windows owner.name — the exe's FileDescription, which is why Zoom is "zoom
+// meetings" and both Outlook spellings are listed.
 const DEFAULT_PRODUCTIVE: [kind: 'app' | 'site', pattern: string][] = [
   ['app', 'momentum app'], // Momentum itself (see migration 5)
   ['app', 'visual studio code'],
@@ -333,6 +410,14 @@ const DEFAULT_PRODUCTIVE: [kind: 'app' | 'site', pattern: string][] = [
   ['site', 'github.com'],
   ['site', 'docs.google.com'],
   ['site', 'stackoverflow.com']
+]
+const PRODUCTIVE_ADDED_V10: [kind: 'app' | 'site', pattern: string][] = [
+  ['app', 'outlook'],
+  ['app', 'microsoft outlook'],
+  ['app', 'microsoft teams'],
+  ['app', 'slack'],
+  ['app', 'zoom meetings'],
+  ['site', 'linkedin.com']
 ]
 const DEFAULT_UNPRODUCTIVE: [kind: 'app' | 'site', pattern: string][] = [
   ['site', 'youtube.com'],

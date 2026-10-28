@@ -8,10 +8,12 @@
 // interval in the provider recomputes `remainingSecs` from it — so the display is correct after any
 // remount or tab switch, not dependent on how many ticks a component saw. While paused, `endsAt` is
 // null and `remainingSecs` is authoritative; resume sets `endsAt = now + remainingSecs * 1000`.
-// Reaching 0 sends one OS toast (api.app.notify) plus, unless the timer is muted (`sound`), a short
-// Web Audio beep — the `notified` flag guards against a repeat. Finished timers stay in the list
-// (with a Restart button) until the user removes them; restart() clears the flag so the next
-// completion notifies again. Running timers pause when the main process pauses monitoring (lock
+// Reaching 0 sends one OS toast (api.app.notifyTimer — clicking it brings the window forward and
+// re-asks for the TimerDone dialog), tells the shell via `onFinished` so the dialog opens at once
+// on whatever screen is showing, and, unless the timer is muted (`sound`), plays a short Web Audio
+// beep — the `notified` flag guards against a repeat. Finished timers stay in the list (with a Restart button) until the
+// user removes them; restart() clears the flag so the next completion notifies again, and can
+// rename the timer (the TimerDone dialog asks for the next task). Running timers pause when the main process pauses monitoring (lock
 // screen / sleep, push:monitoringPaused) and resume with it, so a forgotten timer can't go off on
 // a locked screen or fire the instant the laptop wakes.
 //
@@ -45,7 +47,7 @@ interface TimersApi {
   pause(id: string): void
   resume(id: string): void
   remove(id: string): void
-  restart(id: string): void
+  restart(id: string, opts?: { label?: string; totalSecs?: number }): void
   toggleSound(id: string): void
   // Re-identify a timer (a new log's timer becomes the saved log's once it has an id).
   rekey(oldKey: string, newKey: string): void
@@ -53,6 +55,13 @@ interface TimersApi {
 }
 
 const TimersContext = createContext<TimersApi | null>(null)
+
+// Store mutations that don't need the ticking timer list. Its value never changes, so a screen
+// that only mutates (Logs dropping a deleted log's timer) doesn't re-render every second.
+interface TimerActions {
+  removeByKey(key: string): void
+}
+const TimerActionsContext = createContext<TimerActions | null>(null)
 
 // Completion sound: a triple 880 Hz sine beep, played three times (0 s, 1.5 s, 3 s), synthesised
 // with Web Audio so there is no asset to ship. The AudioContext constructor or start() can throw
@@ -86,7 +95,12 @@ function beep(): void {
   }
 }
 
-export function TimersProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
+interface TimersProviderProps {
+  children: React.ReactNode
+  onFinished?: (timerId: string) => void // a timer just hit 0 (once per completion)
+}
+
+export function TimersProvider({ children, onFinished }: TimersProviderProps): React.JSX.Element {
   const [timers, setTimers] = useState<ActiveTimer[]>([])
   // Mirror of `timers` for the interval callback and start()'s idempotency check, which need the
   // latest committed list without being re-created every render. Synced after commit.
@@ -127,13 +141,14 @@ export function TimersProvider({ children }: { children: React.ReactNode }): Rea
     for (const tm of timers) {
       if (tm.notified && !firedRef.current.has(tm.id)) {
         firedRef.current.add(tm.id)
-        api.app.notify("Time's up", tm.label)
+        api.app.notifyTimer(tm.id, tm.label)
+        onFinished?.(tm.id)
         if (tm.sound) beep()
       } else if (!tm.notified) {
         firedRef.current.delete(tm.id)
       }
     }
-  }, [timers])
+  }, [timers, onFinished])
 
   // Lock screen / sleep: pause every running timer and remember which ones, so only those resume
   // on unlock / wake. A timer the user paused by hand stays paused.
@@ -176,6 +191,11 @@ export function TimersProvider({ children }: { children: React.ReactNode }): Rea
   function get(key: string): ActiveTimer | undefined {
     return timers.find((t) => t.key === key)
   }
+
+  // Built once: setTimers is stable, so the object (and the context value) never changes.
+  const [actions] = useState<TimerActions>(() => ({
+    removeByKey: (key) => setTimers((prev) => prev.filter((t) => t.key !== key))
+  }))
 
   function start(opts: StartTimerOpts): ActiveTimer {
     if (opts.key !== undefined) {
@@ -224,19 +244,22 @@ export function TimersProvider({ children }: { children: React.ReactNode }): Rea
   }
 
   // Back to a full, running countdown. Clearing `notified` is what lets the next completion send
-  // the toast/beep again; label, key and sound are kept.
-  function restart(id: string): void {
+  // the toast/beep again; key and sound are kept, and the label and length too unless new ones
+  // are given (the TimerDone dialog asks for both).
+  function restart(id: string, opts?: { label?: string; totalSecs?: number }): void {
     setTimers((prev) =>
-      prev.map((t) =>
-        t.id !== id
-          ? t
-          : {
-              ...t,
-              endsAt: Date.now() + t.totalSecs * 1000,
-              remainingSecs: t.totalSecs,
-              notified: false
-            }
-      )
+      prev.map((t) => {
+        if (t.id !== id) return t
+        const totalSecs = opts?.totalSecs ?? t.totalSecs
+        return {
+          ...t,
+          label: opts?.label ?? t.label,
+          totalSecs,
+          endsAt: Date.now() + totalSecs * 1000,
+          remainingSecs: totalSecs,
+          notified: false
+        }
+      })
     )
   }
 
@@ -249,17 +272,26 @@ export function TimersProvider({ children }: { children: React.ReactNode }): Rea
   }
 
   return (
-    <TimersContext.Provider
-      value={{ timers, start, pause, resume, remove, restart, toggleSound, rekey, get }}
-    >
-      {children}
-    </TimersContext.Provider>
+    <TimerActionsContext.Provider value={actions}>
+      <TimersContext.Provider
+        value={{ timers, start, pause, resume, remove, restart, toggleSound, rekey, get }}
+      >
+        {children}
+      </TimersContext.Provider>
+    </TimerActionsContext.Provider>
   )
 }
 
 export function useTimers(): TimersApi {
   const ctx = useContext(TimersContext)
   if (!ctx) throw new Error('useTimers must be used inside <TimersProvider>')
+  return ctx
+}
+
+// Mutations only — no subscription to the per-second ticks.
+export function useTimerActions(): TimerActions {
+  const ctx = useContext(TimerActionsContext)
+  if (!ctx) throw new Error('useTimerActions must be used inside <TimersProvider>')
   return ctx
 }
 

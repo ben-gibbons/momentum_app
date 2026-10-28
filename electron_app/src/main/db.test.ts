@@ -2,7 +2,8 @@
 // Migration test: builds a v0 schema in an in-memory SQLite DB with seed-like task rows, runs
 // migrate(), and checks the v6 → v7 tasks rebuild (ids preserved, steps still attached, new
 // columns + indexes, the category CHECK gone, the D3 completion backfill, foreign keys back on,
-// and a second migrate() being a no-op).
+// and a second migrate() being a no-op), the v8 created_at backfill, the v9 / v10 static seeds and
+// the v11 completed column.
 //
 // better-sqlite3 is rebuilt for Electron's ABI (postinstall), which plain Node — and so `npm test`
 // — cannot load, so the suite skips itself there. Run it under Electron's own Node:
@@ -21,7 +22,7 @@ try {
   open = null
 }
 
-describe.skipIf(open === null)('migrate (v0 → v8)', () => {
+describe.skipIf(open === null)('migrate (v0 → v11)', () => {
   let db: Database.Database
   const WEEK = 1_760_227_200 // some Monday midnight; the value doesn't matter
   const DAY = WEEK + 86_400
@@ -44,8 +45,25 @@ describe.skipIf(open === null)('migrate (v0 → v8)', () => {
     migrate(db)
   })
 
-  it('bumps user_version to 8', () => {
-    expect(db.pragma('user_version', { simple: true })).toBe(8)
+  it('bumps user_version to 11', () => {
+    expect(db.pragma('user_version', { simple: true })).toBe(11)
+  })
+
+  it('v11 adds procrastination_logs.completed, defaulting existing logs to complete', () => {
+    db.prepare("INSERT INTO procrastination_logs (created_at, label) VALUES (1, 'old')").run()
+    expect(db.prepare('SELECT completed FROM procrastination_logs').get()).toEqual({ completed: 1 })
+  })
+
+  it('v9 / v10 seed the static reference data and the added Productive rules', () => {
+    expect(db.prepare('SELECT COUNT(*) AS n FROM distortions').get()).toEqual({ n: 10 })
+    expect(db.prepare('SELECT COUNT(*) AS n FROM risk_factor_catalog').get()).toEqual({ n: 9 })
+    expect(
+      db
+        .prepare(
+          "SELECT classification FROM classification_rules WHERE kind = 'site' AND pattern = 'linkedin.com'"
+        )
+        .get()
+    ).toEqual({ classification: 1 })
   })
 
   it('v8 adds created_at, backfilled from the day the row was for', () => {
@@ -118,7 +136,56 @@ describe.skipIf(open === null)('migrate (v0 → v8)', () => {
     const { migrate } = await import('./db')
     const before = db.prepare('SELECT COUNT(*) AS n FROM tasks').get()
     migrate(db)
-    expect(db.pragma('user_version', { simple: true })).toBe(8)
+    expect(db.pragma('user_version', { simple: true })).toBe(11)
     expect(db.prepare('SELECT COUNT(*) AS n FROM tasks').get()).toEqual(before)
+  })
+})
+
+// Migration 10 on an *existing* DB: a rule the user already sorted is kept (and its sessions left
+// alone), while a rule that lands reclassifies the not-sure sessions it covers. The DB is put at
+// v9 by hand with just the tables step 10 touches (steps 1–9 are exercised above).
+describe.skipIf(open === null)('migrate (v9 → v10 on an existing DB)', () => {
+  let db: Database.Database
+
+  beforeAll(async () => {
+    const { initSchema, migrate } = await import('./db')
+    db = open!(':memory:')
+    initSchema(db)
+    db.exec(`
+      CREATE TABLE classification_rules (
+        id INTEGER PRIMARY KEY, kind TEXT NOT NULL, pattern TEXT NOT NULL,
+        classification INTEGER NOT NULL, created_at INTEGER NOT NULL, UNIQUE (kind, pattern));
+      ALTER TABLE sessions ADD COLUMN host TEXT;
+      ALTER TABLE sessions ADD COLUMN app_key TEXT;
+      INSERT INTO classification_rules (kind, pattern, classification, created_at)
+        VALUES ('app', 'slack', 2, 1);
+      INSERT INTO sessions (id, app, app_key, host, classification, start_time)
+        VALUES (1, 'Slack', 'slack', NULL, 3, 1),
+               (2, 'Microsoft Edge', 'microsoft edge', 'www.linkedin.com', 3, 2),
+               (3, 'Microsoft Edge', 'microsoft edge', 'notlinkedin.com', 3, 3),
+               (4, 'Microsoft Teams', 'microsoft teams', NULL, 3, 4);
+      PRAGMA user_version = 9;
+    `)
+    migrate(db)
+  })
+
+  it('keeps a rule the user already sorted, and leaves its sessions alone', () => {
+    expect(
+      db.prepare("SELECT classification FROM classification_rules WHERE pattern = 'slack'").get()
+    ).toEqual({ classification: 2 })
+    expect(db.prepare('SELECT classification FROM sessions WHERE id = 1').get()).toEqual({
+      classification: 3
+    })
+  })
+
+  it('adds the other rules and reclassifies the not-sure sessions they cover', () => {
+    expect(db.prepare('SELECT COUNT(*) AS n FROM classification_rules').get()).toEqual({ n: 6 })
+    const cls = db.prepare('SELECT id, classification FROM sessions WHERE id > 1 ORDER BY id').all()
+    expect(cls).toEqual([
+      { id: 2, classification: 1 }, // www.linkedin.com — subdomain match
+      { id: 3, classification: 3 }, // notlinkedin.com — not a dot-boundary match
+      { id: 4, classification: 1 } // microsoft teams — app_key match
+    ])
+    expect(db.pragma('user_version', { simple: true })).toBe(11)
   })
 })
