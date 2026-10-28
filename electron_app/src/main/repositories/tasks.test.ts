@@ -35,6 +35,13 @@ const TODAY = startOfDay()
 const MON = weekStartMonday(TODAY)
 const SUN = addDays(MON, 6)
 const DAYS_LEFT = Math.round((SUN - TODAY) / 86400) + 1 // today..Sunday
+// `hour` o'clock local on `dayStart`, through Date setters like the repository's atTimeOf — a flat
+// `dayStart + hour * 3600` is an hour off on a DST-change day (which Sunday is, some weeks).
+function atHour(dayStart: number, hour: number): number {
+  const d = new Date(dayStart * 1000)
+  d.setHours(hour, 0, 0, 0)
+  return Math.floor(d.getTime() / 1000)
+}
 
 describe.skipIf(!loadable)('tasks repository', () => {
   let db: Database.Database
@@ -81,7 +88,7 @@ describe.skipIf(!loadable)('tasks repository', () => {
       type: 'daily',
       title: 'Stretch',
       date: TODAY,
-      dueDate: TODAY + 16 * 3600,
+      dueDate: atHour(TODAY, 16),
       repeatDays: ALL_DAYS,
       steps: [{ text: 'Hamstrings', estMinutes: 5 }]
     })
@@ -205,13 +212,13 @@ describe.skipIf(!loadable)('tasks repository', () => {
       type: 'daily',
       title: 'Lone',
       date: TODAY,
-      dueDate: TODAY + 9 * 3600
+      dueDate: atHour(TODAY, 9)
     })
     const loneParent = tasks.listWeekly(MON)[0].id
     tasks.update(lone, { date: nextWeekDay })
     expect(tasks.listDaily(nextWeekDay)[0]).toMatchObject({
       id: lone,
-      dueDate: nextWeekDay + 9 * 3600
+      dueDate: atHour(nextWeekDay, 9)
     })
     expect(tasks.listWeekly(MON)).toEqual([])
     expect(tasks.listWeekly(addDays(MON, 7))).toEqual([expect.objectContaining({ id: loneParent })])
@@ -693,16 +700,16 @@ describe.skipIf(!loadable)('tasks repository', () => {
       type: 'daily',
       title: 'Run',
       date: TODAY,
-      dueDate: TODAY + 16 * 3600,
+      dueDate: atHour(TODAY, 16),
       steps: [{ text: 'laces' }]
     })
     const w = tasks.listWeekly(MON)[0].id
     tasks.update(d, { repeatDays: ALL_DAYS })
     for (const t of tasks.listDailyRange(TODAY, addDays(SUN, 1))) {
-      expect(t.dueDate).toBe(t.date + 16 * 3600)
+      expect(t.dueDate).toBe(atHour(t.date, 16))
       expect(t.steps.map((s) => s.text)).toEqual(['laces'])
     }
-    expect(tasks.get(w)).toMatchObject({ id: w, dueDate: TODAY + 16 * 3600 })
+    expect(tasks.get(w)).toMatchObject({ id: w, dueDate: atHour(TODAY, 16) })
     expect(tasks.get(w)!.steps.map((s) => s.text)).toEqual(['laces'])
 
     // A mask that leaves out the day's own weekday still keeps the row being edited.
@@ -719,15 +726,15 @@ describe.skipIf(!loadable)('tasks repository', () => {
       title: 'Read',
       date: TODAY,
       repeatDays: ALL_DAYS,
-      dueDate: TODAY + 16 * 3600,
+      dueDate: atHour(TODAY, 16),
       steps: [{ text: 'old' }]
     })
     const todayRow = tasks.listDaily(TODAY)[0].id!
     tasks.toggleComplete(todayRow)
-    tasks.update(s, { dueDate: TODAY + 17 * 3600, steps: [{ text: 'new' }] })
+    tasks.update(s, { dueDate: atHour(TODAY, 17), steps: [{ text: 'new' }] })
     for (const t of tasks.listDailyRange(TODAY, addDays(SUN, 1))) {
       const hour = t.id === todayRow ? 16 : 17
-      expect(t.dueDate).toBe(t.date + hour * 3600)
+      expect(t.dueDate).toBe(atHour(t.date, hour))
       expect(t.steps.map((x) => x.text)).toEqual([t.id === todayRow ? 'old' : 'new'])
     }
   })

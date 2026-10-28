@@ -3,39 +3,14 @@
 // (design_system/interactive-flows/data.js) plus the task-step content the home screen depends
 // on, so every screen has realistic data without a live monitoring run. Runs once, only when the
 // DB is empty (guarded by an empty settings table). Never runs in production builds — index.ts
-// calls it behind is.dev. Idempotent: a second call is a no-op once data exists.
+// calls it behind is.dev. Idempotent: a second call is a no-op once data exists. The static
+// reference data (risk-factor catalog, distortions) is not seeded here — migration 9 in db.ts
+// ships it to every install.
 import { getDb } from './db'
 import { startOfDay, weekStartMonday } from './repositories/util'
 
 const DAY = 86400
 const MIN = 60
-
-// ---- Catalog / reference data (from data.js) ----
-
-const RISK_FACTORS = [
-  'Sleep',
-  'Water',
-  'Food',
-  'Medication',
-  'Exercise',
-  'Social connection',
-  'Going outside',
-  'Fun activities',
-  'Sense of accomplishment'
-]
-
-const DISTORTIONS = [
-  'All-or-nothing thinking',
-  'Overgeneralization',
-  'Mental filter',
-  'Disqualifying the positive',
-  'Jumping to conclusions',
-  'Magnification or minimization',
-  'Emotional reasoning',
-  'Should statements',
-  'Labeling and mislabeling',
-  'Personalization'
-]
 
 // data.js weekly[] / daily[]
 const WEEKLY = [
@@ -140,14 +115,6 @@ export function seedDevFixtures(): void {
     ]
     const setStmt = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)')
     for (const [k, v] of settings) setStmt.run(k, v)
-
-    // Catalogs
-    const rfStmt = db.prepare(
-      'INSERT INTO risk_factor_catalog (label, is_custom, created_at) VALUES (?, 0, NULL)'
-    )
-    for (const f of RISK_FACTORS) rfStmt.run(f)
-    const dStmt = db.prepare('INSERT INTO distortions (ordinal, label) VALUES (?, ?)')
-    DISTORTIONS.forEach((label, i) => dStmt.run(i + 1, label))
 
     // Weekly tasks (current week)
     const weekStart = weekStartMonday()

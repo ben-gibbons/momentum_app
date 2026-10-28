@@ -1,7 +1,8 @@
 // components/Hero.tsx
 // Forest-green hero banner from the home screen: eyebrow date, time-of-day greeting, a calm
-// remaining-tasks sub-line, a live "focused today" pill, and a New log button. Pure presentational
-// component — data + the onNewLog handler come from the Home screen.
+// remaining-tasks sub-line, a live "focused today" pill (opens Productivity Trends → Today, like
+// the "This session" tile), and a New log button. Pure presentational component — data + the
+// handlers come from the Home screen.
 import { NotebookPen } from 'lucide-react'
 import { formatHM, greeting, remainingLine, todayLabel } from '../lib/format'
 
@@ -10,13 +11,15 @@ interface HeroProps {
   focusedMinutes: number
   incompleteCount: number
   onNewLog?: () => void
+  onOpenTrends?: () => void // the "focused today" pill → Productivity Trends
 }
 
 export function Hero({
   userName,
   focusedMinutes,
   incompleteCount,
-  onNewLog
+  onNewLog,
+  onOpenTrends
 }: HeroProps): React.JSX.Element {
   return (
     <div className="bg-green-800 px-12 py-7 text-green-100">
@@ -32,7 +35,21 @@ export function Hero({
         </div>
 
         <div className="flex flex-none flex-col items-end gap-[10px]">
-          <span className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-border-brand bg-raised px-4 text-[13px] font-semibold text-brand">
+          {/* A span acting as a button (same pattern as the SessionTiles tile) so the pill keeps its
+              inline layout; Enter / Space mirror the click for keyboard users. */}
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label="Open Productivity Trends"
+            onClick={onOpenTrends}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onOpenTrends?.()
+              }
+            }}
+            className="inline-flex h-10 cursor-pointer items-center gap-2 whitespace-nowrap rounded-full border border-border-brand bg-raised px-4 text-[13px] font-semibold text-brand transition-colors hover:bg-green-50 focus-visible:outline-none focus-visible:shadow-[var(--ring-focus)]"
+          >
             <span className="h-[7px] w-[7px] rounded-full bg-green-600" />
             {formatHM(focusedMinutes)} focused today
           </span>

@@ -1,7 +1,8 @@
 <!-- splash.html — the cold-start splash page, loaded by the main process before index.html.
      This is design_system/brand/splash.html VERBATIM (keep it that way: re-copy the design file
-     rather than editing here) with exactly three changes: the CSP meta, the ../styles.css link
-     replaced by /src/splash.ts (tokens, fonts, the done timer), and the image path. -->
+     rather than editing here) with exactly four changes: the CSP meta, the ../styles.css link
+     replaced by /src/splash.ts (tokens, fonts, the done timer), the image path, and the
+     .v-version text, which splash.ts sets from package.json at runtime. -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -35,6 +36,10 @@
   .v-head { position: absolute; top: 60px; left: 0; right: 0; display: flex; justify-content: center;
     font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; white-space: nowrap;
     color: rgb(169, 196, 175); }
+
+  /* version note — small, muted, tucked into the card's bottom-right corner */
+  .v-version { position: absolute; right: 28px; bottom: 22px; z-index: 2;
+    font-family: var(--font-data); font-size: 12px; line-height: 1; color: rgb(169, 196, 175); }
 
   .v-brand { display: flex; flex-direction: column; align-items: center; gap: 30px; position: relative; z-index: 2; }
   .v-wm { display: inline-flex; align-items: center; gap: 12px; }
@@ -115,6 +120,7 @@
   <div class="vsplash">
     <div class="v-decor"><div class="v-vignette"></div></div>
     <div class="v-head">Finding your footing</div>
+    <div class="v-version">v1.0</div>
     <div class="v-brand">
       <div class="v-wm">
         <span class="v-mark">

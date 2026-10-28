@@ -26,7 +26,7 @@ type DialogState = { mode: 'create' } | { mode: 'edit'; taskId: number } | null
 
 interface HomeProps {
   onNewLog?: () => void
-  onOpenTrends?: () => void // "This session" tile → Productivity Trends
+  onOpenTrends?: () => void // "This session" tile + hero "focused today" pill → Productivity Trends
   dayKey?: number // bumped by App when the daily routine ran (new day / carry-over): refetch
 }
 
@@ -56,6 +56,7 @@ export default function Home({ onNewLog, onOpenTrends, dayKey }: HomeProps): Rea
         focusedMinutes={(focus.data ?? ZERO_FOCUS).focusedMinutes}
         incompleteCount={incomplete}
         onNewLog={onNewLog}
+        onOpenTrends={onOpenTrends}
       />
       <div className="mx-auto max-w-[920px] px-12 pb-14 pt-[30px]">
         <TodayCard

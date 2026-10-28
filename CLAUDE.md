@@ -40,7 +40,6 @@ Code that exists but is intentionally inert, partial, or stubbed — left open o
 
 - **`Category` type vs free-text `category` column** — `src/shared/types.ts` keeps `Category` as the four known labels (tag colours exist for those) while migration 7 dropped the column's `CHECK`, so the DB accepts any text (NULL = none). An editable category list (V2) needs no migration — only the type, the dialog select, and the tag colours change.
 - **`session.getCurrent()` / `getTodayFocus()` = today's window** — `src/main/repositories/sessions.ts`. "Current session" is approximated as *today's* totals (a V1 simplification), not a real per-app-launch session boundary. Waiting on a proper session definition.
-- **Default Productive / Unproductive lists are placeholders** — `src/main/db.ts` migration 3 seeds a starter set; the final contents and the Settings explanation copy are open DECIDE items under roadmap V1 #1.
 - **Timers are in-memory** — `src/renderer/src/lib/timers.tsx`. Running timers don't survive an app restart; persistence is unplanned until a need appears.
 
 ## Running the POC
