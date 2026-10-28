@@ -49,7 +49,8 @@ const api: MomentumApi = {
     list: () => ipcRenderer.invoke('logs:list'),
     get: (id: number) => ipcRenderer.invoke('logs:get', id),
     create: (input: LogInput) => ipcRenderer.invoke('logs:create', input),
-    update: (id: number, input: LogInput) => ipcRenderer.invoke('logs:update', id, input)
+    update: (id: number, input: LogInput) => ipcRenderer.invoke('logs:update', id, input),
+    remove: (id: number) => ipcRenderer.invoke('logs:remove', id)
   },
   riskFactors: {
     listCatalog: () => ipcRenderer.invoke('riskFactors:listCatalog'),
@@ -74,6 +75,8 @@ const api: MomentumApi = {
   app: {
     splashDone: () => ipcRenderer.invoke('app:splashDone'),
     notify: (title: string, body: string) => ipcRenderer.invoke('app:notify', title, body),
+    notifyTimer: (timerId: string, label: string) =>
+      ipcRenderer.invoke('app:notifyTimer', timerId, label),
     raiseDistraction: (event: DistractionEvent) => ipcRenderer.invoke('app:raiseDistraction', event)
   },
   // Main → renderer push channels (prefixed push:). The wrapper hides the IpcRendererEvent and
@@ -105,6 +108,13 @@ const api: MomentumApi = {
       ipcRenderer.on('push:openTask', listener)
       return () => {
         ipcRenderer.removeListener('push:openTask', listener)
+      }
+    },
+    onOpenTimer: (cb: (timerId: string) => void) => {
+      const listener = (_e: IpcRendererEvent, timerId: string): void => cb(timerId)
+      ipcRenderer.on('push:openTimer', listener)
+      return () => {
+        ipcRenderer.removeListener('push:openTimer', listener)
       }
     }
   }

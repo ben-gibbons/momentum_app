@@ -22,6 +22,7 @@ Take the unpolished V1 build to a usable, mostly functioning desktop app with en
     - [x] Risk factor → recurring task with a risk-factor category: moved to item 5 — completed 2026-10-13 there (a daily series per selected factor, tagged "Risk factor")
 - [x] 3. Timers + notifications — completed 2026-10-06
     - [x] App-wide timer store (`lib/timers.tsx`) + Timers tile on Daily Tasks: log timers outlive the log, custom timers (min + sec), OS toast + repeating beep (mutable), Restart; timers pause with monitoring on lock/sleep. In-memory only — completed 2026-10-06
+    - [x] Clicking the "Time's up" toast opens a timer-done dialog (`components/TimerDone.tsx`): the timer's name, how long it ran and how long ago it ended, Close, mute / sound, and Restart — which needs the next task typed in or "Same task" — completed 2026-10-28 (`app:notifyTimer` → `push:openTimer`)
 - [x] 4. Settings screen — completed 2026-10-06
     - [x] Name, nudge thresholds + per-class cooldowns (min + sec, 10 s steps, cooldown ≥ threshold), strict mode, Productive / Unproductive lists with placeholder suggestions, "Not sure yet" reclassify list, multi-window explanation; autosaves — completed 2026-10-06
     - [x] Master on/off switch on the Distraction popup card (`monitoring_enabled`): off stops polling, the sidecar, session rows and nudges, and greys out every polling-dependent setting — completed 2026-10-07
@@ -39,7 +40,11 @@ Take the unpolished V1 build to a usable, mostly functioning desktop app with en
     - [x] Verify daily/weekly/monthly accumulation at query time (raw rows kept) — completed 2026-10-13 (`sessions.getDay / getWeek / getMonth / getBreakdown` aggregate raw rows with DST-safe day boundaries; nothing is pruned — the 30-day window applies only to Settings "Not sure yet")
 - [ ] 8. Verify that logs save and can be reviewed
     - [x] Packaged-build gap: `distortions` and `risk_factor_catalog` defaults are seeded only by dev `seed.ts`, so a fresh install has an empty distortion list in the log flow — move those static seeds into a `db.ts` migration (the Productive/Unproductive defaults already live there) — completed 2026-10-27 (migration 9; `seed.ts` no longer inserts either table)
+    - [x] Logs list: rows titled by task text, click → read-only detail with editable actual minutes, Edit → the flow — completed 2026-10-27
+    - [x] Delete a log (trash on the row, two-step confirm; its timer leaves the Timers tile) and in-progress logs: X after at least one completed step saves the log with `completed = 0` (migration 11), the row says "In progress" and clicking it resumes the flow at the first unfinished step — completed 2026-10-28
 - [ ] 9. Reduce clutter in log flow or resize the card (steps 3 and 4, review all steps and remove unnecessary steps)
+    - [x] Four steps, no intro (task → feeling → thought record → first steps with predicted / actual minutes and the timer); done screen shows "Saved to your logs." beside the check, the quote, a review of the saved log with Edit, then Save and close — completed 2026-10-28
+    - [x] Step 3 copy (tempting / self-control thought prompts, "% belief in tempting thought"); the last slider accepts 0%. Step 4 caption ("10 mins maximum per step…") and PowerPoint example placeholders — completed 2026-10-28
 - [ ] 10. Npm run dev: still prints active window to terminal (says "starting Electron", says Electron in active window print, right clicking taskbar icon says Electron as well)
     - [x] Poll output collapsed to one `[poll] front: … · also visible: …` line per poll; Momentum's own window prints as "Momentum App" — completed 2026-10-06
     - [ ] Remaining: the "starting Electron" banner and the taskbar name are electron-vite / dev-only; decide whether to silence `[poll]` / `[session]` lines entirely once tracking is trusted

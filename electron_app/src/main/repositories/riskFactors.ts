@@ -70,6 +70,7 @@ export function select(catalogId: number, recur = false): number {
       )
     }
 
-    return logs.create({ source: 'risk_factor', riskFactor: factor.label })
+    // In progress until the user finishes the flow (the Logs list says so and resumes it).
+    return logs.create({ source: 'risk_factor', riskFactor: factor.label, completed: false })
   })()
 }

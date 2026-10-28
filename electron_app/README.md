@@ -80,9 +80,9 @@ src/
     splash.html           # The cold-start splash page: design_system/brand/splash.html verbatim (re-copy, don't edit)
     src/
       splash.ts           # splash.html's script: tokens + fonts, then app:splashDone after one 3.23 s loop
-      App.tsx             # Sidebar routing shell; mounts Nudge + the log overlay; TimersProvider; push:dayChanged / push:openTask
+      App.tsx             # Sidebar routing shell; mounts Nudge + the log overlay; TimersProvider; push:dayChanged / push:openTask / push:openTimer (TimerDone dialog)
       lib/                # api accessor (api.ts), useAsync hook, formatters, timers store (timers.tsx)
-      components/         # presentational components; RangeNav; log/, risk/, settings/ subfolders; TimersTile
+      components/         # presentational components; RangeNav; log/ (fields, Stepper, Timer, LogReview, LogDetail), risk/, settings/ subfolders; TimersTile, TimerDone
         tasks/            # TaskDialog (create / edit / delete / stop repeating), RepeatPicker, WeekdayPicker, StepsEditor
         calendar/         # WeekView, DayView, MonthView, WeeklyList, shared.ts (labels, keys)
         session/          # TrendsChart, MonthChart, BreakdownList, StatBar, SessionStatGrid

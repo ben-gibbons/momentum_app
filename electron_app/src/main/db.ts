@@ -14,7 +14,7 @@
 // (static Burns reference list), and settings (greeting name, popup thresholds, toggles).
 // Everything after the v0 baseline arrives via MIGRATIONS below (classification_rules, sessions.host
 // and app_key, the default lists, the per-class cooldown settings, the static risk-factor catalog
-// and distortion list) — see docs/database-overview.md "Migrations".
+// and distortion list, procrastination_logs.completed) — see docs/database-overview.md "Migrations".
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import { join } from 'path'
@@ -357,6 +357,14 @@ const MIGRATIONS: (Step | { ownTransaction: true; run: Step })[] = [
       if (kind === 'app') reclassifyApp.run(pattern)
       else reclassifySite.run(pattern, pattern)
     }
+  },
+  // v10 → v11: procrastination_logs.completed — a log closed part-way through the flow (after at
+  // least one step) is saved as in-progress (0) so it can be resumed from the Logs list; Finish
+  // sets 1. Every log that already exists was saved by Finish, hence DEFAULT 1.
+  (database) => {
+    database.exec(
+      'ALTER TABLE procrastination_logs ADD COLUMN completed INTEGER NOT NULL DEFAULT 1'
+    )
   }
 ]
 

@@ -203,7 +203,8 @@ CREATE TABLE procrastination_logs (
   belief_self_control  INTEGER,           -- 0–100
   belief_after         INTEGER,           -- 0–100
   takeaways            TEXT,
-  risk_factor          TEXT               -- NULL unless source = 'risk_factor'
+  risk_factor          TEXT,              -- NULL unless source = 'risk_factor'
+  completed            INTEGER NOT NULL DEFAULT 1  -- migration 11: 0 = closed part-way through the flow (the Logs list says "In progress" and clicking the row resumes it); Finish sets 1
 );
 ```
 
@@ -285,7 +286,7 @@ CREATE TABLE settings (
 1. **`initSchema()`** — the frozen **v0 baseline**: idempotent `CREATE TABLE IF NOT EXISTS` for `sessions`, `tasks`, `task_steps`, `procrastination_logs`, `log_steps`, `risk_factors`, `risk_factor_catalog`, `distortions`, `settings`. Nothing is ever added here.
 2. **`migrate()`** — reads `PRAGMA user_version` (0 on a fresh file) and applies `MIGRATIONS[i]` for every `i >= user_version`, bumping the version after each. Each step runs inside a single transaction **with the version bump**, so a failed step leaves the file untouched at its previous version. A step that rebuilds a table other tables reference is written as `{ ownTransaction: true, run }`: the runner turns `PRAGMA foreign_keys` **off outside** the transaction (the pragma is a no-op inside one), runs the step, requires `PRAGMA foreign_key_check` to come back empty before the version bump (a reference the rebuild broke rolls the whole step back), and turns enforcement back on in a `finally`. A failed migration fails every launch; `getDb()` closes the handle and throws an error naming the file (in dev the fix is deleting it — fixtures regenerate).
 
-The ten shipped steps (`user_version` after each in brackets):
+The eleven shipped steps (`user_version` after each in brackets):
 
 | Step | What it does |
 |---|---|
@@ -299,6 +300,7 @@ The ten shipped steps (`user_version` after each in brackets):
 | 7 → 8 | Adds `tasks.created_at` ("Created on" in the edit dialog) and backfills it from `date`, else `week_start`. |
 | 8 → 9 | Static reference data ships with the app (it was dev-seed only, so a packaged install had an empty distortion dropdown): the nine default `risk_factor_catalog` rows (`INSERT OR IGNORE` — `label` is UNIQUE) and the ten Burns `distortions`, inserted only when that table is empty (no unique column; a dev DB already had them). |
 | 9 → 10 | The V1 default Productive list decided 2026-10-27: adds the Outlook / Microsoft Outlook / Microsoft Teams / Slack / Zoom Meetings app rules and `linkedin.com` with `INSERT OR IGNORE` (a user's own rule for one of these wins), and — like step 5 and Settings' `rules.add()` — reclassifies the not-sure sessions each landed rule covers (`app_key` match, or `host` at a dot boundary). |
+| 10 → 11 | Adds `procrastination_logs.completed` (`NOT NULL DEFAULT 1`, so every existing log counts as finished). The log flow writes 0 when the X closes an unfinished log after at least one step, and a risk-factor log is created at 0 until its flow is finished. |
 
 **The rule**: never edit the baseline or a shipped step. Any schema change — a new table, a new column, a data fix, a seed — is a new function **appended** to `MIGRATIONS`. `ALTER TABLE ... ADD COLUMN` has no `IF NOT EXISTS`, so guard it with `PRAGMA table_info` as steps 1 and 4 do. Dropping a constraint or adding a column with `REFERENCES` needs a table rebuild — use the `ownTransaction` form as step 7 does.
 

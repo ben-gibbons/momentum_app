@@ -85,7 +85,7 @@ export default function RiskFactors({
           <h1 className="mt-0 font-display text-[38px] font-medium leading-[1.08] tracking-[-0.02em] text-ink">
             What&apos;s running low?
           </h1>
-          <p className="mt-2 max-w-[540px] text-[17px] text-muted">
+          <p className="mt-2 text-[17px] text-muted">
             Distraction often starts in the body. Pick anything that&apos;s been neglected.
           </p>
         </header>

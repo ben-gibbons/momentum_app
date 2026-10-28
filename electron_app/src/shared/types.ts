@@ -184,6 +184,7 @@ export interface LogListItem {
   emotion: string | null
   taskText: string | null // step-1 text; the Logs list's row title (label is the fallback)
   createdAt: number
+  completed: boolean // false = closed part-way through the flow; the row says "In progress"
 }
 
 export interface LogStep {
@@ -213,6 +214,7 @@ export interface ProcrastinationLog {
   beliefAfter: number | null
   takeaways: string | null
   riskFactor: string | null
+  completed: boolean
   steps: LogStep[]
 }
 
@@ -229,6 +231,7 @@ export interface LogInput {
   beliefAfter?: number | null
   takeaways?: string | null
   riskFactor?: string | null
+  completed?: boolean // omitted on update = unchanged; omitted on create = true
   steps?: LogStep[]
 }
 
@@ -341,6 +344,7 @@ export interface MomentumApi {
     get(id: number): Promise<ProcrastinationLog | null>
     create(input: LogInput): Promise<number>
     update(id: number, input: LogInput): Promise<void>
+    remove(id: number): Promise<void> // the log and its steps
   }
   riskFactors: {
     listCatalog(): Promise<RiskFactorCatalogItem[]>
@@ -368,6 +372,9 @@ export interface MomentumApi {
     splashDone(): Promise<void>
     // OS toast; clicking it brings the Momentum window forward.
     notify(title: string, body: string): Promise<void>
+    // A timer's "Time's up" toast; clicking it also pushes onOpenTimer(timerId) so the renderer
+    // opens the timer-done dialog.
+    notifyTimer(timerId: string, label: string): Promise<void>
     // Called by the renderer once it has shown the nudge for a pushed DistractionEvent: bring the
     // window forward and show the OS toast. (The renderer owns the decision so a nudge it
     // suppresses — e.g. while a log is open — produces no toast either.)
@@ -382,5 +389,7 @@ export interface MomentumApi {
     onDayChanged(cb: () => void): () => void
     // A reminder toast was clicked: open Calendar on that task's week with it highlighted.
     onOpenTask(cb: (e: OpenTaskEvent) => void): () => void
+    // A timer's "Time's up" toast was clicked: open the timer-done dialog for that timer.
+    onOpenTimer(cb: (timerId: string) => void): () => void
   }
 }

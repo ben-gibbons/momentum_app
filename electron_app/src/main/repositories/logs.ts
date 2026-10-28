@@ -27,6 +27,7 @@ interface LogRow {
   belief_after: number | null
   takeaways: string | null
   risk_factor: string | null
+  completed: number // 0 = closed part-way (resumable), 1 = finished
 }
 
 interface StepRow {
@@ -56,17 +57,21 @@ function defaultLabel(ts: number, riskFactor?: string | null): string {
 export function list(): LogListItem[] {
   const rows = getDb()
     .prepare(
-      `SELECT id, created_at, label, source, emotion, task_text FROM procrastination_logs
-       ORDER BY created_at DESC`
+      `SELECT id, created_at, label, source, emotion, task_text, completed
+       FROM procrastination_logs ORDER BY created_at DESC`
     )
-    .all() as Pick<LogRow, 'id' | 'created_at' | 'label' | 'source' | 'emotion' | 'task_text'>[]
+    .all() as Pick<
+    LogRow,
+    'id' | 'created_at' | 'label' | 'source' | 'emotion' | 'task_text' | 'completed'
+  >[]
   return rows.map((r) => ({
     id: r.id,
     label: r.label,
     source: r.source,
     emotion: r.emotion,
     taskText: r.task_text,
-    createdAt: r.created_at
+    createdAt: r.created_at,
+    completed: r.completed === 1
   }))
 }
 
@@ -93,6 +98,7 @@ export function get(id: number): ProcrastinationLog | null {
     beliefAfter: r.belief_after,
     takeaways: r.takeaways,
     riskFactor: r.risk_factor,
+    completed: r.completed === 1,
     steps: stepRows.map((s) => ({
       id: s.id,
       stepNumber: s.step_number,
@@ -138,12 +144,15 @@ export function create(input: LogInput): number {
     .prepare(
       `INSERT INTO procrastination_logs
          (created_at, label, source, task_text, emotion, tempting_thought, belief_before,
-          distortion, self_control_thought, belief_self_control, belief_after, takeaways, risk_factor)
+          distortion, self_control_thought, belief_self_control, belief_after, takeaways, risk_factor,
+          completed)
        VALUES (@created_at, @label, @source, @task_text, @emotion, @tempting_thought, @belief_before,
-          @distortion, @self_control_thought, @belief_self_control, @belief_after, @takeaways, @risk_factor)`
+          @distortion, @self_control_thought, @belief_self_control, @belief_after, @takeaways, @risk_factor,
+          @completed)`
     )
     .run({
       created_at: createdAt,
+      completed: input.completed === false ? 0 : 1,
       label,
       source: input.source ?? 'manual',
       task_text: input.taskText ?? null,
@@ -163,12 +172,15 @@ export function create(input: LogInput): number {
 }
 
 // Update mutable fields and replace the step set (steps are rewritten wholesale when provided).
+// `completed` is left alone unless the input says (the detail view's actual-minutes save sends it
+// back unchanged; the flow sends true on Finish and false when closed part-way).
 export function update(id: number, input: LogInput): void {
   const db = getDb()
   db.prepare(
     `UPDATE procrastination_logs SET
        label = COALESCE(@label, label),
        source = COALESCE(@source, source),
+       completed = COALESCE(@completed, completed),
        task_text = @task_text, emotion = @emotion, tempting_thought = @tempting_thought,
        belief_before = @belief_before, distortion = @distortion,
        self_control_thought = @self_control_thought, belief_self_control = @belief_self_control,
@@ -178,6 +190,7 @@ export function update(id: number, input: LogInput): void {
     id,
     label: input.label ?? null,
     source: input.source ?? null,
+    completed: input.completed == null ? null : input.completed ? 1 : 0,
     task_text: input.taskText ?? null,
     emotion: input.emotion ?? null,
     tempting_thought: input.temptingThought ?? null,
@@ -193,4 +206,13 @@ export function update(id: number, input: LogInput): void {
     db.prepare('DELETE FROM log_steps WHERE log_id = ?').run(id)
     insertSteps(id, input.steps)
   }
+}
+
+// Delete a log and its steps (the steps reference the log, so they go first; one transaction).
+export function remove(id: number): void {
+  const db = getDb()
+  db.transaction(() => {
+    db.prepare('DELETE FROM log_steps WHERE log_id = ?').run(id)
+    db.prepare('DELETE FROM procrastination_logs WHERE id = ?').run(id)
+  })()
 }

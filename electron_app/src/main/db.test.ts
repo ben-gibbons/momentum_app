@@ -2,7 +2,8 @@
 // Migration test: builds a v0 schema in an in-memory SQLite DB with seed-like task rows, runs
 // migrate(), and checks the v6 → v7 tasks rebuild (ids preserved, steps still attached, new
 // columns + indexes, the category CHECK gone, the D3 completion backfill, foreign keys back on,
-// and a second migrate() being a no-op), the v8 created_at backfill, and the v9 / v10 static seeds.
+// and a second migrate() being a no-op), the v8 created_at backfill, the v9 / v10 static seeds and
+// the v11 completed column.
 //
 // better-sqlite3 is rebuilt for Electron's ABI (postinstall), which plain Node — and so `npm test`
 // — cannot load, so the suite skips itself there. Run it under Electron's own Node:
@@ -21,7 +22,7 @@ try {
   open = null
 }
 
-describe.skipIf(open === null)('migrate (v0 → v10)', () => {
+describe.skipIf(open === null)('migrate (v0 → v11)', () => {
   let db: Database.Database
   const WEEK = 1_760_227_200 // some Monday midnight; the value doesn't matter
   const DAY = WEEK + 86_400
@@ -44,8 +45,13 @@ describe.skipIf(open === null)('migrate (v0 → v10)', () => {
     migrate(db)
   })
 
-  it('bumps user_version to 10', () => {
-    expect(db.pragma('user_version', { simple: true })).toBe(10)
+  it('bumps user_version to 11', () => {
+    expect(db.pragma('user_version', { simple: true })).toBe(11)
+  })
+
+  it('v11 adds procrastination_logs.completed, defaulting existing logs to complete', () => {
+    db.prepare("INSERT INTO procrastination_logs (created_at, label) VALUES (1, 'old')").run()
+    expect(db.prepare('SELECT completed FROM procrastination_logs').get()).toEqual({ completed: 1 })
   })
 
   it('v9 / v10 seed the static reference data and the added Productive rules', () => {
@@ -130,7 +136,7 @@ describe.skipIf(open === null)('migrate (v0 → v10)', () => {
     const { migrate } = await import('./db')
     const before = db.prepare('SELECT COUNT(*) AS n FROM tasks').get()
     migrate(db)
-    expect(db.pragma('user_version', { simple: true })).toBe(10)
+    expect(db.pragma('user_version', { simple: true })).toBe(11)
     expect(db.prepare('SELECT COUNT(*) AS n FROM tasks').get()).toEqual(before)
   })
 })
@@ -180,6 +186,6 @@ describe.skipIf(open === null)('migrate (v9 → v10 on an existing DB)', () => {
       { id: 3, classification: 3 }, // notlinkedin.com — not a dot-boundary match
       { id: 4, classification: 1 } // microsoft teams — app_key match
     ])
-    expect(db.pragma('user_version', { simple: true })).toBe(10)
+    expect(db.pragma('user_version', { simple: true })).toBe(11)
   })
 })

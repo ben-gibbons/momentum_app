@@ -3,14 +3,17 @@
 // is its own page (splash.html) that the main process shows before this one —
 // and the two app-wide overlays (the "Feeling distracted?" nudge and the full-screen Procrastination
 // Log flow). The nudge opens either from the sidebar or when the main process pushes a
-// DistractionEvent (threshold crossed). Two more main-process pushes land here: push:dayChanged
-// (the daily task routine ran → dayKey bumps so task views refetch) and push:openTask (a reminder
-// toast was clicked → Calendar opens on that task). Screens are content-only <main> panels
-// rendered in the grid's second column.
+// DistractionEvent (threshold crossed). Three more main-process pushes land here: push:dayChanged
+// (the daily task routine ran → dayKey bumps so task views refetch), push:openTask (a reminder
+// toast was clicked → Calendar opens on that task) and push:openTimer (a timer's "Time's up" toast
+// was clicked → the TimerDone dialog for it, which TimersProvider's onFinished already opened the
+// moment the timer hit 0). Screens are content-only <main> panels rendered in the grid's second
+// column.
 import { useEffect, useRef, useState } from 'react'
 import type { DistractionEvent, LogSource, OpenTaskEvent } from '../../shared/types'
 import { Sidebar, type NavId } from './components/Sidebar'
 import { Nudge } from './components/Nudge'
+import { TimerDone } from './components/TimerDone'
 import Home from './screens/Home'
 import Trends from './screens/Trends'
 import Calendar from './screens/Calendar'
@@ -39,6 +42,9 @@ function App(): React.JSX.Element {
   const [dayKey, setDayKey] = useState(0)
   // The task a reminder toast asked to open; Calendar highlights it.
   const [calendarFocus, setCalendarFocus] = useState<OpenTaskEvent | null>(null)
+  // The timer the TimerDone dialog is showing (set when a timer finishes, and again by its toast
+  // click); null = no dialog.
+  const [timerDone, setTimerDone] = useState<string | null>(null)
 
   // Sidebar daily badge = incomplete daily count; refetched on navigation, when the log flow
   // closes, and on a day change.
@@ -46,6 +52,7 @@ function App(): React.JSX.Element {
   const incomplete = (daily.data ?? []).filter((t) => !t.completed).length
 
   useEffect(() => api.events.onDayChanged(() => setDayKey((k) => k + 1)), [])
+  useEffect(() => api.events.onOpenTimer((id) => setTimerDone(id)), [])
   useEffect(
     () =>
       api.events.onOpenTask((e) => {
@@ -92,9 +99,9 @@ function App(): React.JSX.Element {
   }
 
   // TimersProvider wraps the whole shell so timers started in the log overlay outlive it and show
-  // on Home.
+  // on Home; a finished timer opens the TimerDone dialog over whatever is on screen.
   return (
-    <TimersProvider>
+    <TimersProvider onFinished={setTimerDone}>
       <div className="grid h-screen grid-cols-[264px_1fr] overflow-hidden bg-paper">
         <Sidebar active={view} dailyBadge={incomplete} onNavigate={navigate} />
 
@@ -135,6 +142,11 @@ function App(): React.JSX.Element {
             source={logFlow.source}
             onClose={() => setLogFlow({ open: false })}
           />
+        )}
+
+        {/* Keyed so a second timer's toast gets a fresh dialog (own draft + clock). */}
+        {timerDone && (
+          <TimerDone key={timerDone} timerId={timerDone} onClose={() => setTimerDone(null)} />
         )}
       </div>
     </TimersProvider>
