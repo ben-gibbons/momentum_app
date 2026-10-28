@@ -57,18 +57,14 @@ function defaultLabel(ts: number, riskFactor?: string | null): string {
 export function list(): LogListItem[] {
   const rows = getDb()
     .prepare(
-      `SELECT id, created_at, label, source, emotion, task_text, completed
+      `SELECT id, created_at, label, source, task_text, completed
        FROM procrastination_logs ORDER BY created_at DESC`
     )
-    .all() as Pick<
-    LogRow,
-    'id' | 'created_at' | 'label' | 'source' | 'emotion' | 'task_text' | 'completed'
-  >[]
+    .all() as Pick<LogRow, 'id' | 'created_at' | 'label' | 'source' | 'task_text' | 'completed'>[]
   return rows.map((r) => ({
     id: r.id,
     label: r.label,
     source: r.source,
-    emotion: r.emotion,
     taskText: r.task_text,
     createdAt: r.created_at,
     completed: r.completed === 1
@@ -173,9 +169,14 @@ export function create(input: LogInput): number {
 
 // Update mutable fields and replace the step set (steps are rewritten wholesale when provided).
 // `completed` is left alone unless the input says (the detail view's actual-minutes save sends it
-// back unchanged; the flow sends true on Finish and false when closed part-way).
+// back unchanged; the flow sends true on Finish and false when closed part-way). One transaction,
+// so a failure between the DELETE and the re-INSERT can't leave a log with its steps wiped.
 export function update(id: number, input: LogInput): void {
   const db = getDb()
+  db.transaction(() => updateUnsafe(db, id, input))()
+}
+
+function updateUnsafe(db: ReturnType<typeof getDb>, id: number, input: LogInput): void {
   db.prepare(
     `UPDATE procrastination_logs SET
        label = COALESCE(@label, label),

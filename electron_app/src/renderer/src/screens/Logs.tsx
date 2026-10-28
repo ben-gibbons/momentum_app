@@ -12,7 +12,7 @@
 import { useState } from 'react'
 import { ChevronRight, NotebookPen, Plus, Trash2 } from 'lucide-react'
 import type { LogListItem } from '../../../shared/types'
-import { api } from '../lib/api'
+import { api, ipcErrorMessage } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
 import { formatStamp } from '../lib/format'
 import { useTimerActions } from '../lib/timers'
@@ -50,15 +50,23 @@ export default function Logs({ onOpenLog, logFlowOpen }: LogsProps): React.JSX.E
   const [selected, setSelected] = useState<number | null>(null)
   // The row whose trash button was clicked and is waiting for Delete / Cancel.
   const [confirmId, setConfirmId] = useState<number | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   // Newest first by createdAt (Unix seconds).
   const items: LogListItem[] = [...(logs.data ?? [])].sort((a, b) => b.createdAt - a.createdAt)
 
   async function remove(id: number): Promise<void> {
-    await api.logs.remove(id)
+    try {
+      await api.logs.remove(id)
+    } catch (e: unknown) {
+      setError(`Couldn't delete that log: ${ipcErrorMessage(e)}`)
+      setConfirmId(null)
+      return
+    }
     // The step-4 timer is keyed on the log id; a deleted log's timer would otherwise linger on
     // the Home tile with nothing to reopen.
     timers.removeByKey(`log-${id}`)
+    setError(null)
     setConfirmId(null)
     logs.reload()
   }
@@ -92,6 +100,7 @@ export default function Logs({ onOpenLog, logFlowOpen }: LogsProps): React.JSX.E
           />
         ) : (
           <div className="rounded-xl border border-border-default bg-card p-6 shadow-sm">
+            {error && <p className="mb-4 text-[13px] text-unproductive">{error}</p>}
             {items.length === 0 ? (
               <p className="py-8 text-center text-[15px] text-muted">
                 No logs yet. When you catch yourself avoiding something, start one.

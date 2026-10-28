@@ -181,7 +181,6 @@ export interface LogListItem {
   id: number
   label: string
   source: LogSource | null
-  emotion: string | null
   taskText: string | null // step-1 text; the Logs list's row title (label is the fallback)
   createdAt: number
   completed: boolean // false = closed part-way through the flow; the row says "In progress"

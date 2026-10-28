@@ -1,8 +1,10 @@
 // index.ts
-// Main process entry point. Creates the BrowserWindow, starts the session manager (SQLite
-// writes) and the monitoring lifecycle (monitoring.ts). Stops the session manager cleanly on
-// before-quit so the open session row is closed before exit.
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+// Main process entry point. Opens the database (a failure shows an error box and quits rather
+// than leaving a windowless process), creates the BrowserWindow, starts the session manager
+// (SQLite writes) and the monitoring lifecycle (monitoring.ts). Stops the session manager cleanly
+// on before-quit so the open session row is closed before exit.
+import { app, dialog, shell, BrowserWindow, ipcMain } from 'electron'
+import { getDb } from './db'
 import { startSessionManager, stopSessionManager } from './session-manager'
 import { startMonitoring, stopMonitoring } from './monitoring'
 import { registerIpc } from './ipc'
@@ -34,7 +36,9 @@ function createWindow(): void {
     icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
+      // The preload only uses contextBridge + ipcRenderer (no Node APIs), so the renderer runs in
+      // Chromium's sandbox; everything privileged stays in this process behind the typed IPC.
+      sandbox: true,
       contextIsolation: true
     }
   })
@@ -47,8 +51,11 @@ function createWindow(): void {
     win.show()
   })
 
-  win.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+  // The app never opens windows of its own; a link in page content (or a future one) goes to the
+  // system browser / mail client, and only for web / mail schemes — never file:, a custom
+  // protocol handler, or anything else openExternal would hand to the OS.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^(https?|mailto):/i.test(url)) void shell.openExternal(url)
     return { action: 'deny' }
   })
 
@@ -60,6 +67,20 @@ app.whenReady().then(() => {
   // AppUserModelID groups the taskbar entry + drives its icon on Windows; set a Momentum id
   // rather than the scaffold's default so the packaged app shows as Momentum.
   electronApp.setAppUserModelId('com.momentum.app')
+
+  // Open (and migrate) the DB before anything depends on it. A corrupt or locked file, or a
+  // failed migration, would otherwise throw out of this callback as an unhandled rejection and
+  // leave Momentum running with no window; say what happened and quit instead.
+  try {
+    getDb()
+  } catch (err) {
+    dialog.showErrorBox(
+      "Momentum can't open its database",
+      `${(err as Error).message}\n\nMomentum will close. If this keeps happening, move or delete the file and relaunch.`
+    )
+    app.quit()
+    return
+  }
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)

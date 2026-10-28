@@ -9,7 +9,7 @@
 // was clicked → the TimerDone dialog for it, which TimersProvider's onFinished already opened the
 // moment the timer hit 0). Screens are content-only <main> panels rendered in the grid's second
 // column.
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DistractionEvent, LogSource, OpenTaskEvent } from '../../shared/types'
 import { Sidebar, type NavId } from './components/Sidebar'
 import { Nudge } from './components/Nudge'
@@ -43,8 +43,13 @@ function App(): React.JSX.Element {
   // The task a reminder toast asked to open; Calendar highlights it.
   const [calendarFocus, setCalendarFocus] = useState<OpenTaskEvent | null>(null)
   // The timer the TimerDone dialog is showing (set when a timer finishes, and again by its toast
-  // click); null = no dialog.
+  // click); null = no dialog. A finish while another dialog is open doesn't replace it (the user
+  // may be mid-sentence); that timer's toast still opens its own dialog later.
   const [timerDone, setTimerDone] = useState<string | null>(null)
+  const onTimerFinished = useCallback((id: string) => setTimerDone((cur) => cur ?? id), [])
+  // Stable, so the dialog's window listeners aren't re-added on every App render (App re-renders
+  // each second while a timer ticks, because it hosts TimersProvider).
+  const closeTimerDone = useCallback(() => setTimerDone(null), [])
 
   // Sidebar daily badge = incomplete daily count; refetched on navigation, when the log flow
   // closes, and on a day change.
@@ -101,7 +106,7 @@ function App(): React.JSX.Element {
   // TimersProvider wraps the whole shell so timers started in the log overlay outlive it and show
   // on Home; a finished timer opens the TimerDone dialog over whatever is on screen.
   return (
-    <TimersProvider onFinished={setTimerDone}>
+    <TimersProvider onFinished={onTimerFinished}>
       <div className="grid h-screen grid-cols-[264px_1fr] overflow-hidden bg-paper">
         <Sidebar active={view} dailyBadge={incomplete} onNavigate={navigate} />
 
@@ -145,9 +150,7 @@ function App(): React.JSX.Element {
         )}
 
         {/* Keyed so a second timer's toast gets a fresh dialog (own draft + clock). */}
-        {timerDone && (
-          <TimerDone key={timerDone} timerId={timerDone} onClose={() => setTimerDone(null)} />
-        )}
+        {timerDone && <TimerDone key={timerDone} timerId={timerDone} onClose={closeTimerDone} />}
       </div>
     </TimersProvider>
   )

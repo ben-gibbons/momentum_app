@@ -45,7 +45,7 @@ export function TimerDone({ timerId, onClose }: TimerDoneProps): React.JSX.Eleme
     if (stale) onClose()
   }, [stale, onClose])
 
-  if (!timer || stale) return null
+  if (stale) return null
 
   const label = next.trim()
 

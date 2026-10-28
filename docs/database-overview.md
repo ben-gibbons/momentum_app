@@ -224,6 +224,8 @@ CREATE TABLE log_steps (
 );
 ```
 
+The four-step log flow (2026-10-27) fills `description`, `predicted_time_mins` and `actual_time_mins` (the last also editable afterwards from the log's detail view) and writes NULL into the difficulty / satisfaction columns and `procrastination_logs.takeaways`. Those columns stay for a V3 journal / reflection feature; the detail view shows them only for older logs that have values.
+
 ### `risk_factors`
 ```sql
 CREATE TABLE risk_factors (

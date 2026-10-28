@@ -41,7 +41,7 @@ npm run typecheck
 
 ```bash
 npm run build:win      # build + electron-builder (Windows)
-npm run build:unpack   # build + unpacked app at dist/win-unpacked/Momentum.exe
+npm run build:unpack   # build + unpacked app at dist/win-unpacked/Momentum.exe (unsigned — signing is a V4 item; Smart App Control blocks unsigned exes when it is on)
 npm run icon           # regenerate build/icon.ico (16/32/48/256) from build/icon.png
 ```
 
@@ -114,7 +114,7 @@ Main-process edits are not hot-reloaded by `npm run dev`; restart the app to pic
 ## Known Stubs (intentionally inert)
 
 - **Timers are in-memory** — `lib/timers.tsx`; running timers don't survive an app restart.
-- **Default Productive / Unproductive lists** — migration 3 seeds a placeholder starter set; final contents are an open decision (roadmap V1 #1).
+- **Unused log columns** — `log_steps.predicted_difficulty` / `actual_difficulty` / `predicted_satisfaction` / `actual_satisfaction` and `procrastination_logs.takeaways`: the four-step log flow writes NULL; `LogReview` shows them only for older logs that have values.
 
 ## Data Storage
 

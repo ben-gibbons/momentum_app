@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Pencil } from 'lucide-react'
 import type { LogInput, ProcrastinationLog } from '../../../../shared/types'
-import { api } from '../../lib/api'
+import { api, ipcErrorMessage } from '../../lib/api'
 import { LogReview } from './LogReview'
 
 interface LogDetailProps {
@@ -37,7 +37,7 @@ export function LogDetail({
         setError(l ? null : 'This log no longer exists.')
       })
       .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e))
+        if (!cancelled) setError(ipcErrorMessage(e))
       })
     return () => {
       cancelled = true
@@ -57,7 +57,7 @@ export function LogDetail({
       setError(null)
     } catch (e: unknown) {
       setLog(log)
-      setError(`Couldn't save that change: ${e instanceof Error ? e.message : String(e)}`)
+      setError(`Couldn't save that change: ${ipcErrorMessage(e)}`)
     }
   }
 

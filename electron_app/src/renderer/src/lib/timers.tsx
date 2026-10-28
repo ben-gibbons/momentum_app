@@ -29,7 +29,6 @@ export interface ActiveTimer {
   totalSecs: number
   endsAt: number | null // ms epoch while running; null while paused or finished
   remainingSecs: number // authoritative while paused; recomputed from endsAt each tick while running
-  finishedAt: number | null // ms epoch when the countdown hit 0; null while running / paused
   key?: string // caller-chosen identity (e.g. the log it belongs to) so start() is idempotent per key
   sound: boolean // play the completion beep (the OS toast always fires)
   notified: boolean
@@ -126,7 +125,7 @@ export function TimersProvider({ children, onFinished }: TimersProviderProps): R
           changed = true
           return remaining > 0
             ? { ...tm, remainingSecs: remaining }
-            : { ...tm, endsAt: null, remainingSecs: 0, notified: true, finishedAt: now }
+            : { ...tm, endsAt: null, remainingSecs: 0, notified: true }
         })
         return changed ? next : prev
       })
@@ -209,7 +208,6 @@ export function TimersProvider({ children, onFinished }: TimersProviderProps): R
       totalSecs: opts.totalSecs,
       endsAt: Date.now() + opts.totalSecs * 1000,
       remainingSecs: opts.totalSecs,
-      finishedAt: null,
       key: opts.key,
       sound: opts.sound ?? true,
       notified: false
@@ -259,7 +257,6 @@ export function TimersProvider({ children, onFinished }: TimersProviderProps): R
           totalSecs,
           endsAt: Date.now() + totalSecs * 1000,
           remainingSecs: totalSecs,
-          finishedAt: null,
           notified: false
         }
       })

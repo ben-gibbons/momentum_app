@@ -29,7 +29,7 @@ import type {
   LogSource,
   ProcrastinationLog as SavedLog
 } from '../../../shared/types'
-import { api } from '../lib/api'
+import { api, ipcErrorMessage } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
 import { Stepper } from '../components/log/Stepper'
 import { Timer } from '../components/log/Timer'
@@ -265,6 +265,9 @@ function LogFlow({
   const [savedId, setSavedId] = useState<number | null>(logId ?? null)
   // Set once Finish has succeeded in this session: the log is complete, so the X discards edits.
   const [finished, setFinished] = useState(false)
+  // Set once Continue has been pressed (a step completed), and kept if the user goes Back — that,
+  // not the current step, is what makes a new log worth saving on X.
+  const [continued, setContinued] = useState(false)
   // A failed save (Finish or the X's progress save); shown above the nav, the overlay stays open.
   const [error, setError] = useState<string | null>(null)
   // Required-field gating applies to new and in-progress logs; an already-finished log is exempt.
@@ -315,8 +318,6 @@ function LogFlow({
     return id
   }
 
-  const describe = (e: unknown): string => (e instanceof Error ? e.message : String(e))
-
   async function finish(): Promise<void> {
     if (saving) return
     setSaving(true)
@@ -326,7 +327,7 @@ function LogFlow({
       setFinished(true)
       setPhase('done')
     } catch (e: unknown) {
-      setError(`Couldn't save the log: ${describe(e)}`)
+      setError(`Couldn't save the log: ${ipcErrorMessage(e)}`)
     } finally {
       setSaving(false)
     }
@@ -336,14 +337,13 @@ function LogFlow({
   // progress save fails the overlay stays open with the message, so the answers aren't lost.
   async function close(): Promise<void> {
     if (saving) return
-    const stepDone = typeof phase === 'number' && phase >= 1
-    const unfinished = !finished && (initialLog ? !initialLog.completed : stepDone)
+    const unfinished = !finished && (initialLog ? !initialLog.completed : continued)
     if (unfinished) {
       setSaving(true)
       try {
         await save(false)
       } catch (e: unknown) {
-        setError(`Couldn't save your progress: ${describe(e)}`)
+        setError(`Couldn't save your progress: ${ipcErrorMessage(e)}`)
         return
       } finally {
         setSaving(false)
@@ -355,6 +355,7 @@ function LogFlow({
   const isStep = typeof phase === 'number'
   const isLast = phase === TOTAL_STEPS - 1
   function next(): void {
+    setContinued(true)
     setPhase((p) => (typeof p === 'number' ? p + 1 : 0))
   }
   function back(): void {
