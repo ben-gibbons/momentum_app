@@ -365,6 +365,25 @@ const MIGRATIONS: (Step | { ownTransaction: true; run: Step })[] = [
     database.exec(
       'ALTER TABLE procrastination_logs ADD COLUMN completed INTEGER NOT NULL DEFAULT 1'
     )
+  },
+  // v11 → v12: tasks.sort_order — the user's manual priority order within a day's list (daily
+  // rows) or a week's list (weekly rows), written by tasks.reorder as 0..n-1 over the whole list.
+  // NULL = never positioned: such rows list after the positioned ones, in the old due-time order,
+  // so a new / carried / generated row lands at the bottom. Existing rows stay NULL (their order
+  // is unchanged until the user drags one).
+  (database) => {
+    const cols = database.pragma('table_info(tasks)') as { name: string }[]
+    if (!cols.some((c) => c.name === 'sort_order')) {
+      database.exec('ALTER TABLE tasks ADD COLUMN sort_order INTEGER')
+    }
+  },
+  // v12 → v13: tasks.est_minutes — the dialog's "Time to complete" (minutes, NULL = not given).
+  // Follows the task like category: copied onto carried / continued / generated rows.
+  (database) => {
+    const cols = database.pragma('table_info(tasks)') as { name: string }[]
+    if (!cols.some((c) => c.name === 'est_minutes')) {
+      database.exec('ALTER TABLE tasks ADD COLUMN est_minutes INTEGER')
+    }
   }
 ]
 

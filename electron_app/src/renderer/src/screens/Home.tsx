@@ -48,6 +48,14 @@ export default function Home({ onNewLog, onOpenTrends, dayKey }: HomeProps): Rea
     await api.taskSteps.toggle(stepId)
     tasks.reload()
   }
+  async function reorderTasks(ids: number[]): Promise<void> {
+    await api.tasks.reorder(ids)
+    tasks.reload()
+  }
+  async function reorderSteps(taskId: number, stepIds: number[]): Promise<void> {
+    await api.taskSteps.reorder(taskId, stepIds)
+    tasks.reload()
+  }
 
   return (
     <main className="overflow-y-auto bg-paper">
@@ -65,6 +73,8 @@ export default function Home({ onNewLog, onOpenTrends, dayKey }: HomeProps): Rea
           onToggleStep={toggleStep}
           onAddTask={() => setDialog({ mode: 'create' })}
           onEditTask={(taskId) => setDialog({ mode: 'edit', taskId })}
+          onReorder={reorderTasks}
+          onReorderSteps={reorderSteps}
         />
         <SessionTiles
           current={current.data ?? ZERO_SESSION}

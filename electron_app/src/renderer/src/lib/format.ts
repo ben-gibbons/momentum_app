@@ -96,3 +96,12 @@ export function repeatLabel(mask: number): string {
 export function shortDate(dayStart: number): string {
   return new Date(dayStart * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
+
+// Wrapping rule for user text in the lists (tasks, steps): a run of words joined by "/" with no
+// spaces ("Anthem/Cobra/Lyra") gets a break opportunity (zero-width space) before each "/", so a
+// line that can't hold the whole run breaks there first; a run with no slashes is left to
+// overflow-wrap, which breaks it between letters where it overflows. Display only — never
+// stored, and never used in a title attribute.
+export function breakable(text: string): string {
+  return text.replace(/(?<=\S)\/(?=\S)/g, '\u200B/')
+}

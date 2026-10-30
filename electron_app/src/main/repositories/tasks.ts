@@ -56,6 +56,8 @@ interface TaskRow {
   carried_from: number | null
   risk_factor_id: number | null
   created_at: number | null // NULL only on rows older than migration v8's backfill
+  sort_order: number | null // manual list position (reorder); NULL = after the positioned rows
+  est_minutes: number | null // "Time to complete" (minutes); copied with the task like category
 }
 
 // A daily row joined to its parent's series fields (LEFT JOIN: a parent-less row still lists).
@@ -64,6 +66,7 @@ interface DailyRow extends TaskRow {
   parent_risk_factor_id: number | null
   factor: string | null
   carried_to: number | null
+  steps_minutes: number | null // see STEPS_MINUTES
 }
 
 interface WeeklyRow extends TaskRow {
@@ -71,6 +74,7 @@ interface WeeklyRow extends TaskRow {
   done_count: number
   carried_to: number | null
   scheduled: number // has a live daily
+  steps_minutes: number | null
 }
 
 interface StepRow {
@@ -91,21 +95,38 @@ interface NewRow {
   category?: Category | null
   due_date?: number | null
   reminder_time?: number | null
+  est_minutes?: number | null
   repeat_days?: number
   repeat_until?: number | null
   carried_from?: number | null
   risk_factor_id?: number | null
   created_at?: number | null // a copy / generated day keeps its source's; default = now
+  sort_order?: number | null // next week's row of a series / carried weekly keeps its place
 }
 
 const TASK_COLS = `id, type, week_start, date, parent_task_id, title, category, due_date,
   reminder_time, completed, completed_at, repeat_days, repeat_until, carried_from, risk_factor_id,
-  created_at`
+  created_at, sort_order, est_minutes`
+
+// List order within one day / week: the user's manual positions first (reorder()), then rows
+// never positioned — by due time, then id — so a new, carried or generated row lands at the bottom.
+// The weekly list sorts its series after its one-off tasks first (listWeekly), so a new one-off
+// task lands at the end of the one-off group and a new series at the end of the list.
+const listOrder = (t: string): string =>
+  `${t}.sort_order IS NULL, ${t}.sort_order, ${t}.due_date IS NULL, ${t}.due_date, ${t}.id`
+
+// The sum of a task's steps' times, NULL while no step has one (SUM skips NULLs and is NULL over
+// none). Once any step has a time it is the task's "Time to complete" — steps without a time
+// count as 0 — in place of the est_minutes column the dialog saves (which the dialog also sets
+// to this sum, so the two agree for a task saved from the dialog).
+const STEPS_MINUTES = (t: string): string =>
+  `(SELECT SUM(s.est_minutes) FROM task_steps s WHERE s.task_id = ${t}.id) AS steps_minutes`
 
 const DAILY_SELECT = `
   SELECT t.*, p.repeat_days AS parent_repeat_days, p.risk_factor_id AS parent_risk_factor_id,
          rf.factor,
-         (SELECT MIN(c.date) FROM tasks c WHERE c.carried_from = t.id) AS carried_to
+         (SELECT MIN(c.date) FROM tasks c WHERE c.carried_from = t.id) AS carried_to,
+         ${STEPS_MINUTES('t')}
   FROM tasks t
   LEFT JOIN tasks p ON p.id = t.parent_task_id
   LEFT JOIN risk_factors rf ON rf.id = p.risk_factor_id`
@@ -165,6 +186,14 @@ function seriesOf(r: TaskRow): SeriesRow {
   }
 }
 
+// STEPS_MINUTES for one task (get() reads its row through getRow).
+function stepsMinutes(taskId: number): number | null {
+  const r = getDb()
+    .prepare(`SELECT ${STEPS_MINUTES('t')} FROM tasks t WHERE t.id = ?`)
+    .get(taskId) as { steps_minutes: number | null }
+  return r.steps_minutes
+}
+
 function getRow(id: number): TaskRow | undefined {
   return getDb().prepare(`SELECT ${TASK_COLS} FROM tasks WHERE id = ?`).get(id) as
     | TaskRow
@@ -175,11 +204,11 @@ function insertRow(r: NewRow): number {
   const result = getDb()
     .prepare(
       `INSERT INTO tasks (type, week_start, date, parent_task_id, title, category, due_date,
-                          reminder_time, repeat_days, repeat_until, carried_from, risk_factor_id,
-                          created_at)
+                          reminder_time, est_minutes, repeat_days, repeat_until, carried_from,
+                          risk_factor_id, created_at, sort_order)
        VALUES (@type, @week_start, @date, @parent_task_id, @title, @category, @due_date,
-               @reminder_time, @repeat_days, @repeat_until, @carried_from, @risk_factor_id,
-               @created_at)`
+               @reminder_time, @est_minutes, @repeat_days, @repeat_until, @carried_from,
+               @risk_factor_id, @created_at, @sort_order)`
     )
     .run({
       created_at: r.created_at ?? nowSecs(),
@@ -191,10 +220,12 @@ function insertRow(r: NewRow): number {
       category: r.category ?? null,
       due_date: r.due_date ?? null,
       reminder_time: r.reminder_time ?? null,
+      est_minutes: r.est_minutes ?? null,
       repeat_days: r.repeat_days ?? 0,
       repeat_until: r.repeat_until ?? null,
       carried_from: r.carried_from ?? null,
-      risk_factor_id: r.risk_factor_id ?? null
+      risk_factor_id: r.risk_factor_id ?? null,
+      sort_order: r.sort_order ?? null
     })
   return result.lastInsertRowid as number
 }
@@ -273,6 +304,7 @@ function toDaily(rows: DailyRow[]): DailyTask[] {
     due: formatDue(r.due_date),
     dueDate: r.due_date,
     reminderTime: r.reminder_time,
+    estMinutes: r.steps_minutes ?? r.est_minutes,
     completed: !!r.completed,
     steps: steps.get(r.id) ?? [],
     parentTaskId: r.parent_task_id,
@@ -292,7 +324,7 @@ export function listDaily(date: number = startOfDay()): DailyTask[] {
     .prepare(
       `${DAILY_SELECT}
        WHERE t.type = 'daily' AND t.date = ?
-       ORDER BY t.due_date IS NULL, t.due_date, t.id`
+       ORDER BY ${listOrder('t')}`
     )
     .all(startOfDay(date)) as DailyRow[]
   return toDaily(rows)
@@ -309,7 +341,7 @@ export function listDailyRange(from: number, to: number): DailyTask[] {
     .prepare(
       `${DAILY_SELECT}
        WHERE t.type = 'daily' AND t.date >= ? AND t.date < ?
-       ORDER BY t.date, t.due_date IS NULL, t.due_date, t.id`
+       ORDER BY t.date, ${listOrder('t')}`
     )
     .all(from, to) as DailyRow[]
   const real = toDaily(rows)
@@ -317,13 +349,13 @@ export function listDailyRange(from: number, to: number): DailyTask[] {
   // Latest row of each series = a series row no later weekly row continues from.
   const latest = db
     .prepare(
-      `SELECT w.*, rf.factor FROM tasks w
+      `SELECT w.*, rf.factor, ${STEPS_MINUTES('w')} FROM tasks w
        LEFT JOIN risk_factors rf ON rf.id = w.risk_factor_id
        WHERE w.type = 'weekly' AND w.repeat_days != 0 AND w.week_start < ?
          AND NOT EXISTS (SELECT 1 FROM tasks c WHERE c.carried_from = w.id AND c.type = 'weekly')
        ORDER BY w.id`
     )
-    .all(to) as (TaskRow & { factor: string | null })[]
+    .all(to) as (TaskRow & { factor: string | null; steps_minutes: number | null })[]
   const projectFrom = Math.max(from, startOfDay())
   // A series' own week is projected too (a series created on Saturday for Mon–Fri has its row in
   // next week with no days yet); a day that already has a real row is not shown twice.
@@ -340,6 +372,7 @@ export function listDailyRange(from: number, to: number): DailyTask[] {
         due: formatDue(w.due_date),
         dueDate: atTimeOf(w.due_date, day),
         reminderTime: null,
+        estMinutes: w.steps_minutes ?? w.est_minutes,
         completed: false,
         steps: [],
         parentTaskId: w.id,
@@ -364,10 +397,12 @@ export function listWeekly(weekStart: number = weekStartMonday()): WeeklyTask[] 
               (SELECT MIN(c.week_start) FROM tasks c
                 WHERE c.carried_from = w.id AND c.type = 'weekly') AS carried_to,
               EXISTS (SELECT 1 FROM tasks d WHERE d.parent_task_id = w.id AND ${NOT_CARRIED})
-                AS scheduled
+                AS scheduled,
+              ${STEPS_MINUTES('w')}
        FROM tasks w
        LEFT JOIN risk_factors rf ON rf.id = w.risk_factor_id
-       WHERE w.type = 'weekly' AND w.week_start = ? ORDER BY w.id`
+       WHERE w.type = 'weekly' AND w.week_start = ?
+       ORDER BY w.repeat_days != 0, ${listOrder('w')}`
     )
     .all(weekStartMonday(weekStart)) as WeeklyRow[]
   return rows.map((r) => {
@@ -377,6 +412,7 @@ export function listWeekly(weekStart: number = weekStartMonday()): WeeklyTask[] 
       id: r.id,
       title: r.title,
       category: r.category,
+      estMinutes: r.steps_minutes ?? r.est_minutes,
       completed: !!r.completed,
       doneCount: r.done_count,
       target: targetForWeek(seriesOf(r)),
@@ -426,6 +462,7 @@ export function get(taskId: number): TaskDetail | null {
     date,
     dueDate: row.due_date,
     reminderTime: row.reminder_time,
+    estMinutes: stepsMinutes(row.id) ?? row.est_minutes,
     completed: !!row.completed,
     parentTaskId: row.parent_task_id,
     repeatDays: series?.repeat_days ?? 0,
@@ -462,6 +499,7 @@ export function create(input: TaskInput): number {
         category: input.category,
         due_date: input.dueDate,
         reminder_time: input.reminderTime,
+        est_minutes: input.estMinutes,
         repeat_days: input.repeatDays,
         repeat_until: input.repeatUntil
       })
@@ -478,7 +516,8 @@ export function create(input: TaskInput): number {
         type: 'weekly',
         week_start: weekStartMonday(input.date ?? undefined),
         title: input.title,
-        category: input.category
+        category: input.category,
+        est_minutes: input.estMinutes
       })
     }
     const id = insertRow({
@@ -489,7 +528,8 @@ export function create(input: TaskInput): number {
       title: input.title,
       category: input.category,
       due_date: input.dueDate,
-      reminder_time: input.reminderTime
+      reminder_time: input.reminderTime,
+      est_minutes: input.estMinutes
     })
     insertSteps(id, steps)
     // A new unticked day under an already-completed weekly reopens it.
@@ -528,6 +568,7 @@ export function update(taskId: number, patch: TaskPatch): void {
     }
     field('title', 'title')
     field('category', 'category')
+    field('est_minutes', 'estMinutes')
     field('due_date', 'dueDate')
     field('reminder_time', 'reminderTime')
     if (row.type === 'weekly' && !stopping) {
@@ -538,21 +579,25 @@ export function update(taskId: number, patch: TaskPatch): void {
       db.prepare(`UPDATE tasks SET ${sets.join(', ')} WHERE id = @id`).run(params)
     }
 
-    const renamed = patch.title !== undefined || patch.category !== undefined
+    // The estimate reaches the other side only when it actually changed: the dialog sends it
+    // with every save, and a series day may carry a time of its own that a title fix on the
+    // series must not wipe.
+    const estChanged = patch.estMinutes !== undefined && patch.estMinutes !== row.est_minutes
+    const renamed = patch.title !== undefined || patch.category !== undefined || estChanged
     const title = patch.title ?? row.title
     const category = patch.category !== undefined ? patch.category : row.category // null clears it
+    const estSet = estChanged ? ', est_minutes = @est' : ''
+    const estParam = estChanged ? { est: patch.estMinutes } : {}
     if (row.type === 'weekly' && renamed) {
       db.prepare(
-        `UPDATE tasks SET title = ?, category = ?
-         WHERE type = 'daily' AND parent_task_id = ? AND date >= ?`
-      ).run(title, category, taskId, today)
+        `UPDATE tasks SET title = @title, category = @category${estSet}
+         WHERE type = 'daily' AND parent_task_id = @id AND date >= @today`
+      ).run({ title, category, id: taskId, today, ...estParam })
     }
     if (row.type === 'daily' && renamed && parent && !isRecurring(parent.repeat_days)) {
-      db.prepare('UPDATE tasks SET title = ?, category = ? WHERE id = ?').run(
-        title,
-        category,
-        parent.id
-      )
+      db.prepare(
+        `UPDATE tasks SET title = @title, category = @category${estSet} WHERE id = @id`
+      ).run({ title, category, id: parent.id, ...estParam })
     }
 
     if (patch.steps) syncSteps(taskId, patch.steps)
@@ -611,11 +656,9 @@ export function update(taskId: number, patch: TaskPatch): void {
         // unfinished days it no longer covers and generates the new ones.
         const start = firstOccurrence(newDay, mask, today)
         if (start !== row.date || weekStartMonday(start) !== row.week_start) {
-          db.prepare('UPDATE tasks SET date = ?, week_start = ? WHERE id = ?').run(
-            start,
-            weekStartMonday(start),
-            taskId
-          )
+          db.prepare(
+            'UPDATE tasks SET date = ?, week_start = ?, sort_order = NULL WHERE id = ?'
+          ).run(start, weekStartMonday(start), taskId)
           startMoved = true
         }
       }
@@ -663,12 +706,12 @@ export function update(taskId: number, patch: TaskPatch): void {
 function moveDaily(id: number, newDay: number): void {
   const db = getDb()
   const current = getRow(id)!
-  db.prepare('UPDATE tasks SET date = ?, due_date = ?, reminder_time = ? WHERE id = ?').run(
-    newDay,
-    atTimeOf(current.due_date, newDay),
-    atTimeOf(current.reminder_time, newDay),
-    id
-  )
+  // The dialog sends the date with every save: the same day is not a move (the row would
+  // otherwise lose its list position and drop to the bottom).
+  if (current.date === newDay) return
+  db.prepare(
+    'UPDATE tasks SET date = ?, due_date = ?, reminder_time = ?, sort_order = NULL WHERE id = ?'
+  ).run(newDay, atTimeOf(current.due_date, newDay), atTimeOf(current.reminder_time, newDay), id)
   if (current.parent_task_id != null) {
     const others = db
       .prepare('SELECT COUNT(*) AS n FROM tasks WHERE parent_task_id = ? AND id != ?')
@@ -689,7 +732,9 @@ function moveDaily(id: number, newDay: number): void {
 function moveSeriesDay(row: TaskRow, newDay: number): void {
   if (row.date === newDay) return
   const db = getDb()
-  const move = db.prepare('UPDATE tasks SET date = ?, due_date = ?, reminder_time = ? WHERE id = ?')
+  const move = db.prepare(
+    'UPDATE tasks SET date = ?, due_date = ?, reminder_time = ?, sort_order = NULL WHERE id = ?'
+  )
   if (row.carried_from != null) {
     move.run(newDay, atTimeOf(row.due_date, newDay), atTimeOf(row.reminder_time, newDay), row.id)
     return
@@ -700,6 +745,7 @@ function moveSeriesDay(row: TaskRow, newDay: number): void {
     parent_task_id: row.parent_task_id,
     title: row.title,
     category: row.category,
+    est_minutes: row.est_minutes,
     due_date: atTimeOf(row.due_date, newDay),
     reminder_time: atTimeOf(row.reminder_time, newDay),
     carried_from: row.id,
@@ -917,21 +963,33 @@ export function remove(taskId: number): void {
 // time of day. A task has one day: with one already, move it (update date) instead.
 export function addToDaily(weeklyId: number, date: number = startOfDay()): number {
   const weekly = getDb()
-    .prepare("SELECT title, category, due_date FROM tasks WHERE id = ? AND type = 'weekly'")
+    .prepare(
+      "SELECT title, category, due_date, est_minutes FROM tasks WHERE id = ? AND type = 'weekly'"
+    )
     .get(weeklyId) as
-    | { title: string; category: Category | null; due_date: number | null }
+    | {
+        title: string
+        category: Category | null
+        due_date: number | null
+        est_minutes: number | null
+      }
     | undefined
   if (!weekly) throw new Error(`Weekly task ${weeklyId} not found`)
   if (liveDaily(weeklyId) != null) throw new Error('This task already has a day')
   const day = startOfDay(date)
-  return create({
+  const id = create({
     type: 'daily',
     title: weekly.title,
     category: weekly.category,
     date: day,
     dueDate: atTimeOf(weekly.due_date, day),
+    estMinutes: weekly.est_minutes,
     parentTaskId: weeklyId
   })
+  // The new day row takes the place the weekly list gives it (see alignDay).
+  const weekStart = getRow(weeklyId)!.week_start
+  if (weekStart != null) alignDay(day, weekOrder(weekStart))
+  return id
 }
 
 // Weekly completion follows its dailies: done when the completed count reaches the target (a
@@ -992,6 +1050,96 @@ export function toggleComplete(taskId: number): { completed: boolean } {
   })()
 }
 
+// ---- list order ----
+
+// A week's weekly ids in list order (one-off tasks before series, as listWeekly shows them).
+function weekOrder(weekStart: number): number[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT w.id FROM tasks w WHERE w.type = 'weekly' AND w.week_start = ?
+       ORDER BY w.repeat_days != 0, ${listOrder('w')}`
+    )
+    .all(weekStart) as { id: number }[]
+  return rows.map((r) => r.id)
+}
+
+// sort_order = index over a list in the given order.
+function writeOrder(ids: number[]): void {
+  const set = getDb().prepare('UPDATE tasks SET sort_order = ? WHERE id = ?')
+  ids.forEach((id, i) => set.run(i, id))
+}
+
+// `current` with the rows of `moved` (a subset, in the order they should now have among
+// themselves) dealt into the slots those rows occupy; every other row keeps its slot.
+function resequence(current: number[], moved: number[]): number[] {
+  const set = new Set(moved)
+  let k = 0
+  return current.map((id) => (set.has(id) ? moved[k++] : id))
+}
+
+// Re-number one day's list so its dailies follow their parents' order in `week` (the weekly
+// list); a daily whose parent isn't in it keeps its slot. How the Week / Month columns and the
+// Home / Day view follow the weekly list.
+function alignDay(day: number, week: number[]): void {
+  const rank = new Map(week.map((id, i) => [id, i]))
+  const rows = getDb()
+    .prepare(
+      `SELECT t.id, t.parent_task_id AS parent FROM tasks t
+       WHERE t.type = 'daily' AND t.date = ? ORDER BY ${listOrder('t')}`
+    )
+    .all(day) as { id: number; parent: number | null }[]
+  const moved = rows
+    .filter((r) => r.parent != null && rank.has(r.parent))
+    .sort((a, b) => rank.get(a.parent!)! - rank.get(b.parent!)!)
+    .map((r) => r.id)
+  if (moved.length > 0)
+    writeOrder(
+      resequence(
+        rows.map((r) => r.id),
+        moved
+      )
+    )
+}
+
+// Write the user's priority order for one list (Home / Day view: a day's dailies; Calendar: a
+// week's weeklies). ids is the whole list in its new order; each row's sort_order becomes its
+// index, so the list's numbering 1..n follows from it. Projected rows (no id) are never sent.
+// The other side follows so both lists agree: after a day's drag, that day's parents take —
+// among themselves, within their one-off / series group — the order their days now have in the
+// weekly list (weeklies not on that day keep their slots); after a weekly drag, every day of the
+// week is re-numbered to follow the weekly list (alignDay). Last drag wins.
+export function reorder(ids: number[]): void {
+  getDb().transaction(() => {
+    if (ids.length === 0) return
+    writeOrder(ids)
+    const first = getRow(ids[0])
+    if (!first) return
+    if (first.type === 'weekly') {
+      if (first.week_start == null) return
+      const week = weekOrder(first.week_start)
+      for (let i = 0; i < 7; i++) alignDay(addDays(first.week_start, i), week)
+      return
+    }
+    // The dragged dailies' parents, in the days' new order, grouped by week and by one-off /
+    // series (resequence() only swaps a group's rows among that group's slots).
+    const parents = new Map<number, { single: number[]; series: number[] }>()
+    for (const id of ids) {
+      const p = getRow(id)?.parent_task_id
+      const w = p == null ? undefined : getRow(p)
+      if (!w || w.week_start == null) continue
+      const g = parents.get(w.week_start) ?? { single: [], series: [] }
+      const list = isRecurring(w.repeat_days) ? g.series : g.single
+      if (!list.includes(w.id)) list.push(w.id)
+      parents.set(w.week_start, g)
+    }
+    for (const [weekStart, g] of parents) {
+      const current = weekOrder(weekStart)
+      const inWeek = (id: number): boolean => current.includes(id)
+      writeOrder(resequence(resequence(current, g.single.filter(inWeek)), g.series.filter(inWeek)))
+    }
+  })()
+}
+
 // ---- steps ----
 
 export function addStep(taskId: number, text: string, estMinutes?: number | null): number {
@@ -1006,6 +1154,16 @@ export function addStep(taskId: number, text: string, estMinutes?: number | null
 
 export function removeStep(stepId: number): void {
   getDb().prepare('DELETE FROM task_steps WHERE id = ?').run(stepId)
+}
+
+// Rewrite a task's step order from the handles on Home / the Day view: each step's ordinal
+// becomes its index in stepIds (the whole list). Scoped to the task so a stray id can't touch
+// another task's step.
+export function reorderSteps(taskId: number, stepIds: number[]): void {
+  const set = getDb().prepare('UPDATE task_steps SET ordinal = ? WHERE id = ? AND task_id = ?')
+  getDb().transaction(() => {
+    stepIds.forEach((id, i) => set.run(i + 1, id, taskId))
+  })()
 }
 
 export function toggleStep(stepId: number): { completed: boolean } {
@@ -1035,6 +1193,7 @@ export function generateWeek(weeklyId: number, today: number = startOfDay()): vo
   const exists = db.prepare(
     "SELECT 1 FROM tasks WHERE type = 'daily' AND parent_task_id = ? AND date = ?"
   )
+  const generated: number[] = []
   for (const day of daysToGenerate(seriesOf(w), today)) {
     if (exists.get(weeklyId, day)) continue
     const id = insertRow({
@@ -1043,11 +1202,18 @@ export function generateWeek(weeklyId: number, today: number = startOfDay()): vo
       parent_task_id: weeklyId,
       title: w.title,
       category: w.category,
+      est_minutes: w.est_minutes,
       due_date: atTimeOf(w.due_date, day),
       reminder_time: atTimeOf(w.reminder_time, day),
       created_at: w.created_at
     })
     copySteps(weeklyId, id, false)
+    generated.push(day)
+  }
+  // Each new day takes the place the weekly list gives the series (see alignDay).
+  if (generated.length > 0 && w.week_start != null) {
+    const week = weekOrder(w.week_start)
+    for (const day of generated) alignDay(day, week)
   }
 }
 
@@ -1069,13 +1235,15 @@ export function continueSeries(thisWeek: number): void {
       week_start: thisWeek,
       title: w.title,
       category: w.category,
+      est_minutes: w.est_minutes,
       due_date: w.due_date,
       reminder_time: w.reminder_time,
       repeat_days: w.repeat_days,
       repeat_until: w.repeat_until,
       risk_factor_id: w.risk_factor_id,
       carried_from: w.id,
-      created_at: w.created_at
+      created_at: w.created_at,
+      sort_order: w.sort_order // keeps its place in the weekly list week to week
     })
     copySteps(w.id, id, false)
   }
@@ -1179,9 +1347,11 @@ export function carryWeeklies(thisWeek: number): void {
       week_start: thisWeek,
       title: w.title,
       category: w.category,
+      est_minutes: w.est_minutes,
       due_date: dueDay == null ? null : atTimeOf(w.due_date, dueDay),
       carried_from: w.id,
-      created_at: w.created_at
+      created_at: w.created_at,
+      sort_order: w.sort_order // keeps its place in the weekly list week to week
     })
     copySteps(w.id, id, true)
   }
@@ -1226,6 +1396,7 @@ export function carryDailies(today: number, thisWeek: number): void {
       parent_task_id: parentCopy?.id ?? row.parent_task_id,
       title: row.title,
       category: row.category,
+      est_minutes: row.est_minutes,
       due_date: atTimeOf(row.due_date, today),
       carried_from: row.id,
       created_at: row.created_at

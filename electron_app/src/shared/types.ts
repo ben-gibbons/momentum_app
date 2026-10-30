@@ -29,6 +29,7 @@ export interface DailyTask {
   due: string | null // formatted for display, e.g. "2:00 PM"
   dueDate: number | null // Unix seconds
   reminderTime: number | null
+  estMinutes: number | null // "Time to complete"
   completed: boolean
   steps: TaskStep[]
   parentTaskId: number | null // the weekly row (series or single-entry mirror)
@@ -48,6 +49,7 @@ export interface WeeklyTask {
   id: number
   title: string
   category: Category | null
+  estMinutes: number | null // "Time to complete"
   completed: boolean
   doneCount: number
   target: number
@@ -75,6 +77,7 @@ export interface TaskInput {
   parentTaskId?: number | null
   dueDate?: number | null
   reminderTime?: number | null
+  estMinutes?: number | null // "Time to complete"; follows the task like category
   repeatDays?: number // non-zero creates a series (a weekly row + this week's dailies)
   repeatUntil?: number | null
   steps?: TaskStepInput[]
@@ -92,6 +95,7 @@ export interface TaskPatch {
   date?: number
   dueDate?: number | null
   reminderTime?: number | null
+  estMinutes?: number | null
   repeatDays?: number
   repeatUntil?: number | null
   steps?: TaskStepInput[]
@@ -114,6 +118,7 @@ export interface TaskDetail {
   date: number | null
   dueDate: number | null
   reminderTime: number | null
+  estMinutes: number | null
   completed: boolean
   parentTaskId: number | null
   repeatDays: number
@@ -322,11 +327,17 @@ export interface MomentumApi {
     // the series.
     remove(taskId: number): Promise<void>
     addToDaily(weeklyId: number, date: number): Promise<number>
+    // Save a list's priority order (a day's dailies, or a week's weeklies): every real row's id
+    // in its new order; the list is numbered 1..n from it. Omit projected rows (no id).
+    reorder(ids: number[]): Promise<void>
   }
   taskSteps: {
     toggle(stepId: number): Promise<{ completed: boolean }>
     add(taskId: number, text: string, estMinutes?: number | null): Promise<number>
     remove(stepId: number): Promise<void>
+    // Save a task's step order (the handles on Home / the Day view): every step id in its new
+    // order; each step's ordinal becomes its index, so "next" follows the new first open step.
+    reorder(taskId: number, stepIds: number[]): Promise<void>
   }
   session: {
     getCurrent(): Promise<SessionTotals>

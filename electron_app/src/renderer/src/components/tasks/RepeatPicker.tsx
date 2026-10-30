@@ -56,7 +56,15 @@ export function RepeatPicker({ value, dateBit, onChange }: RepeatPickerProps): R
           )
         })}
       </div>
-      {preset !== 'daily' && <WeekdayPicker value={value} onChange={onChange} />}
+      {/* Under Daily the chip row is hidden but kept in the layout at zero height (the -mt
+          cancels the gap), so the picker stays as wide as the chips and the dialog's Ends row,
+          sized to this block, doesn't collapse. */}
+      <div
+        aria-hidden={preset === 'daily'}
+        className={preset === 'daily' ? 'invisible -mt-3 h-0 overflow-hidden' : ''}
+      >
+        <WeekdayPicker value={value} onChange={onChange} />
+      </div>
     </div>
   )
 }

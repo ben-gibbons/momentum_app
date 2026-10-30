@@ -1,6 +1,6 @@
 // components/tasks/TaskDialog.tsx
-// The task create / edit dialog (V1 item 5, D7): title, date, due time, optional category, steps,
-// reminder, repeat (D4). A centered scrim modal in the Nudge idiom (Escape / backdrop close,
+// The task create / edit dialog (V1 item 5, D7): title, time to complete, date, due time, steps,
+// then repeat (D4) with the optional category and reminder on its row. A centered scrim modal in the Nudge idiom (Escape / backdrop close,
 // fade + pop-in), sized like the design-system Dialog wide variant (560px, radius 2xl), with the
 // form controls styled like components/log/fields.tsx. Opened from Home (create for today, or
 // edit via a task row) and from Calendar (create for a clicked day / with a repeat preset, edit).
@@ -67,6 +67,7 @@ interface FormState {
   date: string // "YYYY-MM-DD"
   due: string // "HH:MM" or ''
   reminder: string // "HH:MM" or ''
+  estMinutes: string // "Time to complete" in minutes; '' = none
   category: '' | Category // '' = none
   steps: StepDraft[]
   repeatOn: boolean
@@ -85,6 +86,7 @@ function fromProps(
     date: toDateInput(day),
     due: '',
     reminder: '',
+    estMinutes: '',
     category: '',
     steps: [],
     repeatOn: mask !== 0,
@@ -100,9 +102,14 @@ function fromDetail(d: TaskDetail): FormState {
 
     due: toTimeInput(d.dueDate),
     reminder: toTimeInput(d.reminderTime),
+    // Blank when the detail's value is the steps' sum (any step has a time): the box derives it
+    // live, and clearing the step times must not leave the old sum behind to be saved.
+    estMinutes:
+      d.estMinutes == null || d.steps.some((s) => s.estMinutes != null) ? '' : String(d.estMinutes),
     category: d.category ?? '',
     steps: d.steps.map((s) => ({
       id: s.id,
+      key: `s${s.id}`,
       text: s.text,
       estMinutes: s.estMinutes == null ? '' : String(s.estMinutes)
     })),
@@ -152,6 +159,15 @@ function TaskForm({ initial, detail, onClose, onSaved }: TaskFormProps): React.J
 
   const set = (change: Partial<FormState>): void => setForm((f) => ({ ...f, ...change }))
 
+  // Once any step has a time, the task's "Time to complete" is the sum of the steps' times (a
+  // step without one counts 0): shown read-only in the box and saved as the task's estimate.
+  // Only steps that will be saved (with text) count, so a time typed on a blank row is not
+  // summed into the task.
+  const timedSteps = form.steps.filter((s) => s.text.trim() !== '')
+  const stepsTotal = timedSteps.some((s) => s.estMinutes !== '')
+    ? timedSteps.reduce((sum, s) => sum + (Number(s.estMinutes) || 0), 0)
+    : null
+
   const isWeekly = detail?.type === 'weekly'
   const isSeries = isWeekly && detail.repeatDays !== 0
   const isSeriesDay = detail?.type === 'daily' && detail.repeatDays !== 0
@@ -195,6 +211,14 @@ function TaskForm({ initial, detail, onClose, onSaved }: TaskFormProps): React.J
     }
     if (ends != null && day != null && ends < day)
       return setError('The end date is before the start date.')
+    const minutesOk = (v: string): boolean =>
+      v === '' || (Number.isInteger(Number(v)) && Number(v) >= 1)
+    // The task's own box only counts while it is editable (not showing the steps' sum).
+    if (
+      (stepsTotal == null && !minutesOk(form.estMinutes)) ||
+      form.steps.some((s) => !minutesOk(s.estMinutes))
+    )
+      return setError('Minutes must be a whole number of 1 or more.')
 
     const steps: TaskStepInput[] = form.steps
       .filter((s) => s.text.trim() !== '')
@@ -208,6 +232,7 @@ function TaskForm({ initial, detail, onClose, onSaved }: TaskFormProps): React.J
       category: form.category || null,
       dueDate: timeOnDay(baseDay, form.due),
       reminderTime: timeOnDay(baseDay, form.reminder),
+      estMinutes: stepsTotal ?? (form.estMinutes === '' ? null : Number(form.estMinutes)),
       steps
     }
     const repeat = showRepeat
@@ -254,7 +279,24 @@ function TaskForm({ initial, detail, onClose, onSaved }: TaskFormProps): React.J
         placeholder="What needs doing?"
       />
 
-      <div className="grid grid-cols-2 gap-4">
+      {/* Three equal columns across the title's width; the minutes box fills its column so the
+          "min" suffix sits the same 16px from the Due date box as that box is from Due time. */}
+      <div className="grid grid-cols-3 gap-4">
+        <Field label="Time to complete">
+          <span className="flex items-center gap-[8px] text-[13px] text-muted">
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={stepsTotal ?? form.estMinutes}
+              readOnly={stepsTotal != null}
+              title={stepsTotal != null ? "The sum of the steps' times" : undefined}
+              onChange={(e) => set({ estMinutes: e.target.value })}
+              className={`${INPUT} min-w-0 flex-1 font-data ${stepsTotal != null ? 'text-muted' : ''}`}
+            />
+            min
+          </span>
+        </Field>
         <div className="flex flex-col gap-[6px]">
           <Field label="Due date">
             <input
@@ -277,83 +319,98 @@ function TaskForm({ initial, detail, onClose, onSaved }: TaskFormProps): React.J
         </Field>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="Category">
-          <select
-            value={form.category}
-            onChange={(e) => set({ category: e.target.value as FormState['category'] })}
-            className={`${INPUT} ${form.category ? 'text-body' : 'text-faint'}`}
-          >
-            <option value="">None</option>
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c} className="text-body">
-                {categoryLabel(c)}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Reminder">
-          <input
-            type="time"
-            value={form.reminder}
-            onChange={(e) => set({ reminder: e.target.value })}
-            className={INPUT}
-          />
-        </Field>
-      </div>
-
       <div className="flex flex-col gap-[7px]">
         <span className="text-[13px] font-semibold text-body">Steps</span>
         <StepsEditor steps={form.steps} onChange={(steps) => set({ steps })} />
       </div>
 
-      {showRepeat && (
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-[11px]">
-            <Switch
-              checked={form.repeatOn}
-              onChange={(on) =>
-                set({
-                  repeatOn: on,
-                  // First switch-on starts from the task date's weekday.
-                  repeatDays: on && form.repeatDays === 0 ? weekdayBit(baseDay) : form.repeatDays
-                })
-              }
-            />
-            <span
-              className={`text-[13px] font-semibold ${form.repeatOn ? 'text-body' : 'text-faint'}`}
-            >
-              Repeat
-            </span>
-            {/* Switching a series off is "Stop repeating": saved as repeatDays 0. */}
-            {isSeries && !form.repeatOn && (
-              <span className="text-[12px] text-faint">
-                Saving makes this a one-off task; unfinished days after today are removed.
-              </span>
-            )}
-          </div>
-          {form.repeatOn && (
-            <>
-              <RepeatPicker
-                value={form.repeatDays}
-                dateBit={weekdayBit(baseDay)}
-                onChange={(repeatDays) => set({ repeatDays })}
+      {/* One row: the Repeat switch (when the task can repeat), then Category + Reminder, all
+          16px apart; the picker and end date open below when repeat is on. */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-start gap-4">
+          {showRepeat && (
+            // Sized to the inputs beside it so the switch centres on their boxes, not their labels.
+            <div className="flex h-[46px] items-center gap-[11px] self-end">
+              <Switch
+                checked={form.repeatOn}
+                onChange={(on) =>
+                  set({
+                    repeatOn: on,
+                    // First switch-on starts from the task date's weekday.
+                    repeatDays: on && form.repeatDays === 0 ? weekdayBit(baseDay) : form.repeatDays
+                  })
+                }
               />
-              <label className="flex items-center gap-3">
-                <span className="text-[13px] font-semibold text-body">Ends</span>
-                <input
-                  type="date"
-                  value={form.ends}
-                  min={form.date}
-                  onChange={(e) => set({ ends: e.target.value })}
-                  className={`${INPUT} w-auto`}
-                />
-                <span className="text-[12px] text-faint">Leave empty to repeat until stopped.</span>
-              </label>
-            </>
+              <span
+                className={`text-[13px] font-semibold ${form.repeatOn ? 'text-body' : 'text-faint'}`}
+              >
+                Repeat
+              </span>
+            </div>
           )}
+          <div className="flex min-w-0 flex-1 gap-4">
+            <div className="min-w-0 flex-1">
+              <Field label="Category">
+                <select
+                  value={form.category}
+                  onChange={(e) => set({ category: e.target.value as FormState['category'] })}
+                  className={`${INPUT} ${form.category ? 'text-body' : 'text-faint'}`}
+                >
+                  <option value="">None</option>
+                  {CATEGORIES.map((c) => (
+                    <option key={c} value={c} className="text-body">
+                      {categoryLabel(c)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            <div className="min-w-0 flex-1">
+              <Field label="Reminder">
+                <input
+                  type="time"
+                  value={form.reminder}
+                  onChange={(e) => set({ reminder: e.target.value })}
+                  className={INPUT}
+                />
+              </Field>
+            </div>
+          </div>
         </div>
-      )}
+        {/* Switching a series off is "Stop repeating": saved as repeatDays 0. */}
+        {showRepeat && isSeries && !form.repeatOn && (
+          <span className="text-[12px] text-faint">
+            Saving makes this a one-off task; unfinished days after today are removed.
+          </span>
+        )}
+        {showRepeat && form.repeatOn && (
+          // w-fit: as wide as the Mon..Sun row. The Ends row is w-0 + min-w-full so it takes that
+          // width without adding to it; its helper text is a shrink-to-fit block at the right
+          // edge, so its longest line ends under the Sunday chip while reading left-aligned.
+          <div className="flex w-fit flex-col gap-3">
+            <RepeatPicker
+              value={form.repeatDays}
+              dateBit={weekdayBit(baseDay)}
+              onChange={(repeatDays) => set({ repeatDays })}
+            />
+            <label className="flex w-0 min-w-full items-center gap-3">
+              <span className="flex-none text-[13px] font-semibold text-body">Ends</span>
+              <input
+                type="date"
+                value={form.ends}
+                min={form.date}
+                onChange={(e) => set({ ends: e.target.value })}
+                className={`${INPUT} min-w-0 flex-1`}
+              />
+              <span className="flex-none text-[12px] text-faint">
+                Leave empty to repeat
+                <br />
+                until stopped.
+              </span>
+            </label>
+          </div>
+        )}
+      </div>
       {isSeriesDay && detail && (
         <p className="rounded-md bg-sunken px-4 py-3 text-[13px] text-muted">
           One day of a task that repeats {repeatLabel(detail.repeatDays).toLowerCase()}

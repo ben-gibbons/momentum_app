@@ -29,13 +29,16 @@ const api: MomentumApi = {
     update: (taskId: number, patch: TaskPatch) => ipcRenderer.invoke('tasks:update', taskId, patch),
     remove: (taskId: number) => ipcRenderer.invoke('tasks:remove', taskId),
     addToDaily: (weeklyId: number, date: number) =>
-      ipcRenderer.invoke('tasks:addToDaily', weeklyId, date)
+      ipcRenderer.invoke('tasks:addToDaily', weeklyId, date),
+    reorder: (ids: number[]) => ipcRenderer.invoke('tasks:reorder', ids)
   },
   taskSteps: {
     toggle: (stepId: number) => ipcRenderer.invoke('taskSteps:toggle', stepId),
     add: (taskId: number, text: string, estMinutes?: number | null) =>
       ipcRenderer.invoke('taskSteps:add', taskId, text, estMinutes),
-    remove: (stepId: number) => ipcRenderer.invoke('taskSteps:remove', stepId)
+    remove: (stepId: number) => ipcRenderer.invoke('taskSteps:remove', stepId),
+    reorder: (taskId: number, stepIds: number[]) =>
+      ipcRenderer.invoke('taskSteps:reorder', taskId, stepIds)
   },
   session: {
     getCurrent: () => ipcRenderer.invoke('session:getCurrent'),

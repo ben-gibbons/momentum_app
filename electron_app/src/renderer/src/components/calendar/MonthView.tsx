@@ -2,7 +2,9 @@
 // The Calendar's Month view (V1 item 5, D6 / A6): a grid of the whole Mon–Sun weeks touching the
 // month (monthWeeks). Each cell shows its day number, "done/total", and the day's tasks as compact
 // rows like the Week view's columns (tick, title on one line — no wrapping here — click → edit
-// dialog; projected series occurrences greyed and inert). Rows come from a single
+// dialog; projected series occurrences greyed and inert), numbered in the day's list order (V2
+// item 7; no drag handle here — the order is set on Home / the Day view or by the weekly list).
+// Rows come from a single
 // tasks.listDailyRange call over the grid's span; projected occurrences count toward the total
 // (they are planned) but never toward done. Days outside the month are muted, today is
 // highlighted, and clicking a cell's empty area opens that date in the Day view.
@@ -12,6 +14,7 @@ import { addDays, addMonths, monthWeeks } from '../../../../shared/dates'
 import { api } from '../../lib/api'
 import { useAsync } from '../../lib/useAsync'
 import { checkboxClass, dailyKey, dayOfMonth, isToday, weekdayShort } from './shared'
+import { ListNumber, STRIKE_CLASS } from '../Reorder'
 
 interface MonthViewProps {
   monthStart: number
@@ -120,10 +123,12 @@ export function MonthView({
                 </div>
                 {c && (
                   <div className="mt-1 flex flex-col gap-[1px]">
-                    {c.tasks.map((task) => (
+                    {c.tasks.map((task, i) => (
                       <MonthTaskRow
                         key={dailyKey(task)}
                         task={task}
+                        number={i + 1}
+                        wide={c.tasks.length >= 10}
                         onToggle={toggle}
                         onEdit={onEdit}
                       />
@@ -141,13 +146,21 @@ export function MonthView({
 
 interface MonthTaskRowProps {
   task: DailyTask
+  number: number
+  wide: boolean // ten or more rows that day: two-digit number column
   onToggle: (taskId: number) => void
   onEdit: (taskId: number) => void
 }
 
 // One task in a month cell: tick + single-line title (truncated — the cell is narrow). Projected
 // rows have no DB row yet and are inert; a carried / moved original is superseded by its copy.
-function MonthTaskRow({ task, onToggle, onEdit }: MonthTaskRowProps): React.JSX.Element {
+function MonthTaskRow({
+  task,
+  number,
+  wide,
+  onToggle,
+  onEdit
+}: MonthTaskRowProps): React.JSX.Element {
   const inert = task.id == null
   const superseded = task.carried && task.carriedTo != null
   return (
@@ -166,6 +179,7 @@ function MonthTaskRow({ task, onToggle, onEdit }: MonthTaskRowProps): React.JSX.
       >
         {task.completed && <Check className="h-[10px] w-[10px] text-sand-50" strokeWidth={3} />}
       </button>
+      {/* -ml trims the row gap to 4px between the checkbox and the number. */}
       <button
         type="button"
         disabled={inert}
@@ -174,10 +188,11 @@ function MonthTaskRow({ task, onToggle, onEdit }: MonthTaskRowProps): React.JSX.
           e.stopPropagation()
           if (task.id != null) onEdit(task.id)
         }}
-        className={`min-w-0 flex-1 truncate text-left text-[11px] ${
-          task.completed ? 'text-faint line-through' : 'text-body'
+        className={`-ml-[1px] min-w-0 flex-1 truncate text-left text-[11px] ${
+          task.completed ? STRIKE_CLASS : 'text-body'
         } ${inert ? '' : 'hover:underline'}`}
       >
+        <ListNumber n={number} wide={wide} completed={task.completed} />
         {task.title}
       </button>
     </div>

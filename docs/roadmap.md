@@ -87,7 +87,7 @@ Add necessary features to fill in final placeholders and make app cover all core
     - [ ] Verify first launch of day, week (Monday's) are working with new profile setup
     - [ ] Weekly list is default popup to force user to think about entire week, then select daily items from weekly list and push unessential items to next week (specific day or Monday default), showing a review for the current day
 - [ ] 6. Step breakdown walkthrough popup similar to Lyra activity. Can be extra page in new task popup page
-- [ ] 7. Drag to reorder tasks/steps
+- [x] 7. Drag to reorder tasks/steps — completed 2026-10-30 (Home / Day view task list, the Calendar weekly list, and the steps inside the task dialog are numbered 1..n with a three-line handle at the row's right edge: drag it to a new slot, or press ↑ / ↓ on it; the number follows the position. Tasks persist through `tasks.reorder` → `tasks.sort_order` (migration 12; a row never positioned lists after the positioned ones, by due time); a weekly-list drag also sets its days' order and a Home / Day view drag sets the parent weeklies', so the weekly list and the Week / Month columns — numbered, no handle of their own — follow either. The weekly list keeps one-off tasks above series (a drag can't cross the two groups) and highlights the first open one-off task; a series is never highlighted, and nothing is once every one-off task is done. Steps persist as `task_steps.ordinal`: through the dialog save, or `taskSteps.reorder` from the handles on the Home / Day view step list)
 - [ ] 8. Verify changing task/step date or time reorders daily/calendar task view
 - [ ] 9. Completed work is saved to calendar tab
     - [ ] Option to show only completed items, hide other items
@@ -97,6 +97,8 @@ Add necessary features to fill in final placeholders and make app cover all core
 - [ ] 11. Add V1.2 note to splash
 - [ ] 12. Editable category list — no migration needed: migration 7 dropped the `category` CHECK (free text, NULL = none), so only the `Category` type, the dialog select and the tag colours change
 - [ ] 13. Electron upgrade (39 → 45+) to clear the remaining `npm audit` advisories (12 Chromium-side ones in electron 39.8.10 plus `extract-zip`): a breaking major, so it needs `npx @electron/rebuild` for `better-sqlite3` / `get-windows`, a re-check of `sandbox: false` + the preload bridge, and the full suite + a packaged build before merging. Deferred from V1 item 16 (2026-10-28)
+- [x] 14. "Time to complete" on tasks — completed 2026-10-30 (a minutes box under the dialog's Title, saved as `tasks.est_minutes` (migration 13) and copied with the task like its category; once any step has a time the box shows the steps' sum read-only, blank steps counting 0, and that sum is what every list reads; shown as "~N min" left of the category / Steps pills on Home, the Day view and the weekly list, where a time plus a category stacks the pill under the handle)
+- [x] 15. V1.1 on the splash — completed 2026-10-30 (`package.json` 1.1.0; item 11 stays for the V1.2 bump)
 
 ---
 

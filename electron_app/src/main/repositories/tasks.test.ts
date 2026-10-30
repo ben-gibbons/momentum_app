@@ -290,6 +290,146 @@ describe.skipIf(!loadable)('tasks repository', () => {
     expect(tasks.get(d)!.steps).toHaveLength(1)
   })
 
+  it('"Time to complete" is saved, mirrored like the category, and reaches generated days', () => {
+    const d = tasks.create({ type: 'daily', title: 'Timed', date: TODAY, estMinutes: 45 })
+    expect(tasks.get(d)!.estMinutes).toBe(45)
+    const w = tasks.listWeekly(MON)[0]
+    expect(tasks.get(w.id)!.estMinutes).toBe(45) // the weekly mirror (get() opens its day)
+    tasks.update(d, { estMinutes: null })
+    expect(db.prepare('SELECT est_minutes FROM tasks WHERE id = ?').get(w.id)).toEqual({
+      est_minutes: null
+    })
+    const s = tasks.create({
+      type: 'daily',
+      title: 'Series',
+      date: TODAY,
+      estMinutes: 20,
+      repeatDays: ALL_DAYS
+    })
+    const days = db
+      .prepare('SELECT DISTINCT est_minutes AS m FROM tasks WHERE parent_task_id = ?')
+      .all(s)
+    // Once any step has a time, the task's time is the sum of the steps' (a step without one
+    // counts 0) wherever it is read.
+    const stepped = tasks.create({
+      type: 'daily',
+      title: 'Stepped',
+      date: TODAY,
+      estMinutes: 99,
+      steps: [{ text: 'a', estMinutes: 10 }, { text: 'b' }, { text: 'c', estMinutes: 5 }]
+    })
+    expect(tasks.get(stepped)!.estMinutes).toBe(15)
+    // A series day's own time survives a series save that doesn't change the estimate (the
+    // dialog sends the estimate with every save).
+    const sd = tasks.listDaily(TODAY).find((t) => t.parentTaskId === s)!.id!
+    tasks.update(sd, { estMinutes: 45 })
+    tasks.update(s, { title: 'Series 2', estMinutes: 20 })
+    expect(tasks.get(sd)!).toMatchObject({ title: 'Series 2', estMinutes: 45 })
+    tasks.update(s, { estMinutes: 30 })
+    expect(tasks.get(sd)!.estMinutes).toBe(30)
+    expect(tasks.listDaily(TODAY).find((t) => t.id === stepped)!.estMinutes).toBe(15)
+    expect(days).toEqual([{ m: 20 }])
+  })
+
+  it('reorderSteps() rewrites the ordinals, and "next" follows the new first open step', () => {
+    const d = tasks.create({
+      type: 'daily',
+      title: 'Steps',
+      date: TODAY,
+      steps: [{ text: 'a' }, { text: 'b' }, { text: 'c' }]
+    })
+    const [a, b, c] = tasks.get(d)!.steps
+    tasks.reorderSteps(d, [c.id, a.id, b.id])
+    const after = tasks.get(d)!.steps
+    expect(after.map((s) => s.text)).toEqual(['c', 'a', 'b'])
+    expect(after[0].isNext).toBe(true)
+  })
+
+  it("reorder() sets a list's order (a weekly's reaches its days); unpositioned rows follow by due time; a moved day drops its slot", () => {
+    const a = tasks.create({ type: 'daily', title: 'A', date: TODAY, dueDate: atHour(TODAY, 9) })
+    const b = tasks.create({ type: 'daily', title: 'B', date: TODAY })
+    const c = tasks.create({ type: 'daily', title: 'C', date: TODAY, dueDate: atHour(TODAY, 8) })
+    const titles = (day: number): string[] => tasks.listDaily(day).map((t) => t.title)
+    expect(titles(TODAY)).toEqual(['C', 'A', 'B']) // nothing positioned: due time, then id
+    tasks.reorder([b, c, a])
+    expect(titles(TODAY)).toEqual(['B', 'C', 'A'])
+    // A day's order reaches the weekly parents, so the weekly list agrees.
+    const w = tasks.listWeekly(MON)
+    expect(w.map((t) => t.title)).toEqual(['B', 'C', 'A'])
+    // The weekly list keeps series after one-off tasks, whatever positions they hold.
+    const ser = tasks.create({ type: 'daily', title: 'Ser', date: TODAY, repeatDays: ALL_DAYS })
+    tasks.reorder([
+      ser,
+      ...tasks
+        .listWeekly(MON)
+        .filter((t) => t.id !== ser)
+        .map((t) => t.id)
+    ])
+    expect(tasks.listWeekly(MON).map((t) => t.title)).toEqual(['B', 'C', 'A', 'Ser'])
+    tasks.remove(ser)
+    // And the weekly list's order is copied onto each weekly's days.
+    tasks.reorder([w[1].id, w[2].id, w[0].id])
+    expect(tasks.listWeekly(MON).map((t) => t.title)).toEqual(['C', 'A', 'B'])
+    expect(titles(TODAY)).toEqual(['C', 'A', 'B'])
+    // A new row is never positioned, so it lands after the positioned ones whatever its time.
+    tasks.create({ type: 'daily', title: 'D', date: TODAY, dueDate: atHour(TODAY, 7) })
+    expect(titles(TODAY)).toEqual(['C', 'A', 'B', 'D'])
+    // Moving a day to another date clears its slot: it lands at the bottom of that day's list.
+    const tomorrow = addDays(TODAY, 1)
+    const e = tasks.create({ type: 'daily', title: 'E', date: tomorrow })
+    tasks.reorder([e])
+    tasks.update(b, { date: tomorrow })
+    expect(titles(tomorrow)).toEqual(['E', 'B'])
+    // Saving the dialog sends the date along: the same day keeps the row's position.
+    tasks.update(e, { date: tomorrow, title: 'E2' })
+    expect(titles(tomorrow)).toEqual(['E2', 'B'])
+    if (DAYS_LEFT > 1) {
+      // A weekly drag re-numbers each day to the weekly list's order (B's weekly lists before
+      // E's), and a day added to a weekly takes the place that order gives it.
+      const w2 = tasks.create({ type: 'weekly', title: 'W', weekStart: MON })
+      tasks.reorder([
+        w2,
+        ...tasks
+          .listWeekly(MON)
+          .filter((t) => t.id !== w2)
+          .map((t) => t.id)
+      ])
+      expect(titles(tomorrow)).toEqual(['B', 'E2'])
+      tasks.addToDaily(w2, tomorrow)
+      expect(titles(tomorrow)).toEqual(['W', 'B', 'E2'])
+      // A day's drag re-sequences only that day's parents in the weekly list; a weekly without
+      // a row on that day keeps its slot (C and D stay where they are).
+      const before = tasks.listWeekly(MON).map((t) => t.title)
+      const ids = tasks.listDaily(tomorrow).map((t) => t.id!)
+      tasks.reorder([ids[2], ids[0], ids[1]]) // E2, W, B
+      const after = tasks.listWeekly(MON).map((t) => t.title)
+      expect(after.filter((t) => ['C', 'D'].includes(t))).toEqual(
+        before.filter((t) => ['C', 'D'].includes(t))
+      )
+      expect(after.indexOf('E2')).toBeLessThan(after.indexOf('W'))
+      expect(after.indexOf('W')).toBeLessThan(after.indexOf('B'))
+      expect(after.indexOf('C')).toBe(before.indexOf('C'))
+      // A series widened: the days generated for the new weekdays take the place the weekly
+      // list gives the series — the end, since series list after one-off tasks there, however
+      // the drag ordered it.
+      const s2 = tasks.create({
+        type: 'daily',
+        title: 'S',
+        date: TODAY,
+        repeatDays: weekdayBit(TODAY)
+      })
+      tasks.reorder([
+        s2,
+        ...tasks
+          .listWeekly(MON)
+          .filter((t) => t.id !== s2)
+          .map((t) => t.id)
+      ])
+      tasks.update(s2, { repeatDays: ALL_DAYS })
+      expect(titles(tomorrow).at(-1)).toBe('S')
+    }
+  })
+
   // ---- regressions from the Phase 0 code review ----
 
   it('clearing a series category clears it on its days too', () => {
