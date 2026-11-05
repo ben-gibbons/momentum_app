@@ -41,6 +41,14 @@ export function DayView({
     await api.taskSteps.toggle(stepId)
     tasks.reload()
   }
+  async function reorderTasks(ids: number[]): Promise<void> {
+    await api.tasks.reorder(ids)
+    tasks.reload()
+  }
+  async function reorderSteps(taskId: number, stepIds: number[]): Promise<void> {
+    await api.taskSteps.reorder(taskId, stepIds)
+    tasks.reload()
+  }
   return (
     <div className="mx-auto max-w-[1004px]">
       <TodayCard
@@ -50,6 +58,8 @@ export function DayView({
         onToggleStep={toggleStep}
         onAddTask={() => onCreate(dayStart)}
         onEditTask={onEdit}
+        onReorder={reorderTasks}
+        onReorderSteps={reorderSteps}
       />
     </div>
   )

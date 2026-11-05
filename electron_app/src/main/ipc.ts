@@ -47,11 +47,15 @@ export function registerIpc(): void {
   ipcMain.handle('tasks:addToDaily', (_e, weeklyId: number, date: number) =>
     thenRearm(tasks.addToDaily(weeklyId, date))
   )
+  ipcMain.handle('tasks:reorder', (_e, ids: number[]) => tasks.reorder(ids))
   ipcMain.handle('taskSteps:toggle', (_e, stepId: number) => tasks.toggleStep(stepId))
   ipcMain.handle('taskSteps:add', (_e, taskId: number, text: string, estMinutes?: number | null) =>
     tasks.addStep(taskId, text, estMinutes)
   )
   ipcMain.handle('taskSteps:remove', (_e, stepId: number) => tasks.removeStep(stepId))
+  ipcMain.handle('taskSteps:reorder', (_e, taskId: number, stepIds: number[]) =>
+    tasks.reorderSteps(taskId, stepIds)
+  )
 
   // Session + trends
   ipcMain.handle('session:getCurrent', () => sessions.getCurrent())

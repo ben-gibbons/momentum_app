@@ -22,7 +22,7 @@ try {
   open = null
 }
 
-describe.skipIf(open === null)('migrate (v0 → v11)', () => {
+describe.skipIf(open === null)('migrate (v0 → v13)', () => {
   let db: Database.Database
   const WEEK = 1_760_227_200 // some Monday midnight; the value doesn't matter
   const DAY = WEEK + 86_400
@@ -45,8 +45,20 @@ describe.skipIf(open === null)('migrate (v0 → v11)', () => {
     migrate(db)
   })
 
-  it('bumps user_version to 11', () => {
-    expect(db.pragma('user_version', { simple: true })).toBe(11)
+  it('bumps user_version to 13', () => {
+    expect(db.pragma('user_version', { simple: true })).toBe(13)
+  })
+
+  it('v13 adds tasks.est_minutes, NULL on every existing row', () => {
+    expect(db.prepare('SELECT est_minutes FROM tasks WHERE id = 2').get()).toEqual({
+      est_minutes: null
+    })
+  })
+
+  it('v12 adds tasks.sort_order, NULL on every existing row', () => {
+    expect(db.prepare('SELECT sort_order FROM tasks WHERE id = 2').get()).toEqual({
+      sort_order: null
+    })
   })
 
   it('v11 adds procrastination_logs.completed, defaulting existing logs to complete', () => {
@@ -136,7 +148,7 @@ describe.skipIf(open === null)('migrate (v0 → v11)', () => {
     const { migrate } = await import('./db')
     const before = db.prepare('SELECT COUNT(*) AS n FROM tasks').get()
     migrate(db)
-    expect(db.pragma('user_version', { simple: true })).toBe(11)
+    expect(db.pragma('user_version', { simple: true })).toBe(13)
     expect(db.prepare('SELECT COUNT(*) AS n FROM tasks').get()).toEqual(before)
   })
 })
@@ -186,6 +198,6 @@ describe.skipIf(open === null)('migrate (v9 → v10 on an existing DB)', () => {
       { id: 3, classification: 3 }, // notlinkedin.com — not a dot-boundary match
       { id: 4, classification: 1 } // microsoft teams — app_key match
     ])
-    expect(db.pragma('user_version', { simple: true })).toBe(11)
+    expect(db.pragma('user_version', { simple: true })).toBe(13)
   })
 })

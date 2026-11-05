@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS classification_rules (
 ```
 
 ### `tasks`
-Rebuilt by migration 7 (V1 item 5) and extended by migration 8; shown as it stands after both.
+Rebuilt by migration 7 (V1 item 5) and extended by migrations 8, 12 and 13; shown as it stands after all of them.
 ```sql
 CREATE TABLE tasks (
   id             INTEGER PRIMARY KEY,
@@ -147,7 +147,9 @@ CREATE TABLE tasks (
   repeat_until   INTEGER,             -- local midnight of the last day; NULL = until stopped
   carried_from   INTEGER REFERENCES tasks(id),        -- the row this copy was carried / continued from
   risk_factor_id INTEGER REFERENCES risk_factors(id), -- the factor a series was generated from
-  created_at     INTEGER              -- migration 8; a copy keeps its source's
+  created_at     INTEGER,             -- migration 8; a copy keeps its source's
+  sort_order     INTEGER,             -- migration 12; manual list position, NULL = never positioned
+  est_minutes    INTEGER              -- migration 13; "Time to complete" in minutes, copied with the task
 );
 CREATE INDEX idx_tasks_type_date ON tasks (type, date);        -- per-day lists
 CREATE INDEX idx_tasks_type_week ON tasks (type, week_start);  -- per-week lists
@@ -155,6 +157,8 @@ CREATE INDEX idx_tasks_parent    ON tasks (parent_task_id);    -- the daily → 
 CREATE INDEX idx_tasks_carried   ON tasks (carried_from);      -- the "already carried" EXISTS
 CREATE INDEX idx_tasks_reminder  ON tasks (reminder_time);     -- next-reminder lookup
 ```
+
+**List order** (`listDaily`, `listDailyRange`, `listWeekly`): `sort_order IS NULL, sort_order, due_date IS NULL, due_date, id` within a day (dailies) or a week (weeklies); the weekly list puts series (`repeat_days != 0`) after one-off tasks before that, so a new one-off task lands at the end of its group and a new series at the end of the list, and the weekly list's drag handle never moves a row across the two groups. `tasks.reorder(ids)` (the drag handle on Home / the Day view / the weekly list, V2 item 7) writes `sort_order` = index over the whole list, so the rows the user positioned come first in that order and the list is numbered 1..n from it — and the other side follows so the two agree: after a weekly drag every day of the week is re-numbered so its dailies follow their parents' order (`alignDay`), and after a day's drag that day's parents are re-sequenced among themselves in the weekly list, within their one-off / series group, while weeklies without a row on that day keep their slots (last drag wins); a day added to a weekly (`addToDaily`) or generated for a series is placed by the same rule, and a series' next-week row / a carried weekly keeps its `sort_order`; a row never positioned — new, or carried over — lists after the positioned ones by due time, so it lands at the bottom. Moving a row to another day (`update` with `date`, or a series' start) sets its `sort_order` back to NULL. Steps keep their own order in `task_steps.ordinal`, rewritten from the dialog's list on save or by `taskSteps.reorder(taskId, stepIds)` from the handles on the Home / Day view step list.
 
 **Rows.** A `daily` row is one day's occurrence of a task. A `weekly` row is either the single-entry mirror of a daily (so the weekly list is complete), or a **series** when `repeat_days != 0`: it repeats on the masked weekdays every week until `repeat_until`. On a series row, `date` is the day the series started (days of its first week before that are not occurrences); it was NULL on every weekly row before the rebuild, so the column was reused. The series' own `task_steps` are the template copied (unticked) onto each generated day. A series lives as a chain of weekly rows, one per week, each pointing at the previous week's row via `carried_from`.
 
@@ -288,7 +292,7 @@ CREATE TABLE settings (
 1. **`initSchema()`** — the frozen **v0 baseline**: idempotent `CREATE TABLE IF NOT EXISTS` for `sessions`, `tasks`, `task_steps`, `procrastination_logs`, `log_steps`, `risk_factors`, `risk_factor_catalog`, `distortions`, `settings`. Nothing is ever added here.
 2. **`migrate()`** — reads `PRAGMA user_version` (0 on a fresh file) and applies `MIGRATIONS[i]` for every `i >= user_version`, bumping the version after each. Each step runs inside a single transaction **with the version bump**, so a failed step leaves the file untouched at its previous version. A step that rebuilds a table other tables reference is written as `{ ownTransaction: true, run }`: the runner turns `PRAGMA foreign_keys` **off outside** the transaction (the pragma is a no-op inside one), runs the step, requires `PRAGMA foreign_key_check` to come back empty before the version bump (a reference the rebuild broke rolls the whole step back), and turns enforcement back on in a `finally`. A failed migration fails every launch; `getDb()` closes the handle and throws an error naming the file (in dev the fix is deleting it — fixtures regenerate).
 
-The eleven shipped steps (`user_version` after each in brackets):
+The thirteen shipped steps (`user_version` after each in brackets):
 
 | Step | What it does |
 |---|---|
@@ -303,6 +307,8 @@ The eleven shipped steps (`user_version` after each in brackets):
 | 8 → 9 | Static reference data ships with the app (it was dev-seed only, so a packaged install had an empty distortion dropdown): the nine default `risk_factor_catalog` rows (`INSERT OR IGNORE` — `label` is UNIQUE) and the ten Burns `distortions`, inserted only when that table is empty (no unique column; a dev DB already had them). |
 | 9 → 10 | The V1 default Productive list decided 2026-10-27: adds the Outlook / Microsoft Outlook / Microsoft Teams / Slack / Zoom Meetings app rules and `linkedin.com` with `INSERT OR IGNORE` (a user's own rule for one of these wins), and — like step 5 and Settings' `rules.add()` — reclassifies the not-sure sessions each landed rule covers (`app_key` match, or `host` at a dot boundary). |
 | 10 → 11 | Adds `procrastination_logs.completed` (`NOT NULL DEFAULT 1`, so every existing log counts as finished). The log flow writes 0 when the X closes an unfinished log after at least one step, and a risk-factor log is created at 0 until its flow is finished. |
+| 11 → 12 | Adds `tasks.sort_order` (guarded `ALTER TABLE`) for the manual list order (V2 item 7). Existing rows stay NULL, so nothing moves until the user drags a row. |
+| 12 → 13 | Adds `tasks.est_minutes` (guarded `ALTER TABLE`): the dialog's "Time to complete". It follows the task like `category` — mirrored between a daily and its single-entry weekly, copied onto carried / continued / generated rows. Reads report the sum of the task's steps' `est_minutes` instead once any step has one (a step without one counts 0); the dialog shows that sum read-only and saves it into the column too. |
 
 **The rule**: never edit the baseline or a shipped step. Any schema change — a new table, a new column, a data fix, a seed — is a new function **appended** to `MIGRATIONS`. `ALTER TABLE ... ADD COLUMN` has no `IF NOT EXISTS`, so guard it with `PRAGMA table_info` as steps 1 and 4 do. Dropping a constraint or adding a column with `REFERENCES` needs a table rebuild — use the `ownTransaction` form as step 7 does.
 

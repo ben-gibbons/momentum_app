@@ -10,12 +10,28 @@
 // "Delete series" kept its ticked days, has nothing to stop). The original of a carried task
 // (carriedTo set) is superseded by
 // its copy: it shows "→ carried to …" and no checkbox or actions. "+ Add" opens the create dialog
-// (repeat is set inside it). Presentational: WeekView owns the data and the api calls.
+// (repeat is set inside it). Rows are numbered 1..n with a drag handle at the right edge (V2
+// item 7); a drop reports the ids in their new order through onReorder. A row's first line is
+// checkbox, number, title, the chips and the handle; the chips + handle are a float at the
+// title's right, one line tall, so a long title wraps under them across the card's full width
+// (the title is a span with the button role — a <button> is an atomic box and can't wrap around a
+// float). The actions / pickers sit below. One-off tasks list above series (the repository
+// orders them; a drag never crosses the two groups), and the first open one-off task is
+// highlighted + bold like a task's first open step (isNext) — a series never is. Presentational: WeekView owns the data and the api calls.
 import { useEffect, useRef, useState } from 'react'
 import { Check, Plus, Repeat } from 'lucide-react'
 import type { WeeklyTask } from '../../../../shared/types'
 import { addDays, startOfDay, weekStartMonday } from '../../../../shared/dates'
-import { categoryLabel, shortDate } from '../../lib/format'
+import { breakable, categoryLabel, shortDate } from '../../lib/format'
+import {
+  ListNumber,
+  moveItem,
+  NO_BREAK,
+  numberedText,
+  STRIKE_CLASS,
+  useReorder,
+  type Reorder
+} from '../Reorder'
 import {
   checkboxClass,
   CHIP_CLASS,
@@ -34,10 +50,15 @@ interface WeeklyListProps {
   onStopRepeating: (weeklyId: number) => void
   onEdit: (taskId: number) => void
   onCreate: (initialDate: number) => void
+  onReorder: (ids: number[]) => void
 }
 
 const ACTION_CLASS =
   'rounded-md px-2 py-[3px] text-[12px] font-semibold text-brand transition-colors hover:bg-brand-soft'
+// The title's first line (15px × leading 21px): the checkbox, chips and handle centre in it.
+const LINE = 'flex h-[21px] flex-none items-center'
+// Indent of the actions / pickers under the title: checkbox (21) + gap (12).
+const UNDER_TITLE = 'pl-[33px]'
 
 export function WeeklyList({
   weekStart,
@@ -47,12 +68,24 @@ export function WeeklyList({
   onAddToDay,
   onStopRepeating,
   onEdit,
-  onCreate
+  onCreate,
+  onReorder
 }: WeeklyListProps): React.JSX.Element {
   // A task added from a past or future week lands on that week's Monday; in the current week it
   // lands on today so it shows up on Home straight away.
   const addDate = weekStart === weekStartMonday() ? startOfDay() : weekStart
   const done = tasks.filter((t) => t.completed).length
+  // One-off tasks list above series (the repository orders them so); a drag keeps a row in its
+  // group — a one-off task can't go below a series, a series can't go above a one-off task.
+  const isSeries = (t: WeeklyTask): boolean => t.repeatDays !== 0
+  const reorder = useReorder(
+    tasks.length,
+    (from, to) => onReorder(moveItem(tasks, from, to).map((t) => t.id)),
+    (from, to) => isSeries(tasks[from]) === isSeries(tasks[to])
+  )
+  // The first open one-off task in list order that is still live here (not carried onward); a
+  // series is never "next" (it completes through its days), and nothing is once they're all done.
+  const next = tasks.find((t) => !isSeries(t) && !t.completed && t.carriedTo == null)
 
   return (
     // h-full: the Week view stretches this card to the day grid's height.
@@ -80,10 +113,14 @@ export function WeeklyList({
         <p className="py-4 text-[15px] text-faint">Nothing planned this week.</p>
       ) : (
         <ul className="flex flex-col">
-          {tasks.map((task) => (
+          {tasks.map((task, i) => (
             <WeeklyRow
               key={task.id}
               task={task}
+              index={i}
+              wide={tasks.length >= 10}
+              isNext={task === next}
+              reorder={reorder}
               weekStart={weekStart}
               highlighted={task.id === highlightId}
               onToggle={onToggle}
@@ -100,6 +137,10 @@ export function WeeklyList({
 
 interface WeeklyRowProps {
   task: WeeklyTask
+  index: number // position in the list (number shown = index + 1)
+  wide: boolean // ten or more rows: two-digit number column
+  isNext: boolean // the list's first open task: highlighted + bold
+  reorder: Reorder
   weekStart: number
   highlighted: boolean
   onToggle: (weeklyId: number) => void
@@ -110,6 +151,10 @@ interface WeeklyRowProps {
 
 function WeeklyRow({
   task,
+  index,
+  wide,
+  isNext,
+  reorder,
   weekStart,
   highlighted,
   onToggle,
@@ -134,16 +179,23 @@ function WeeklyRow({
   // A day can be given to an open single-entry task that has none and hasn't been carried onward.
   const canAddDay = !series && !task.completed && !superseded && !task.scheduled
   const tag = categoryLabel(task.category)
+  // With a time showing, the category pill moves to a second line under the handle (the card is
+  // narrow: both on one line would push the whole title under them).
+  const stackTag = tag != null && task.estMinutes != null
+  const row = reorder.rowProps(index)
 
   return (
     <li
       ref={ref}
-      className={`border-b border-border-subtle py-[12px] last:border-b-0 ${highlighted ? HIGHLIGHT_CLASS : ''}`}
+      {...row}
+      className={`border-b border-border-subtle py-[12px] last:border-b-0 ${highlighted ? HIGHLIGHT_CLASS : ''} ${row.className}`}
     >
-      <div className="flex items-start gap-3">
+      <div
+        className={`flex items-start gap-3 ${isNext ? '-mx-2 rounded-md bg-brand-soft px-2 py-[6px]' : ''}`}
+      >
         {superseded ? (
           // Same footprint as the checkbox so titles stay aligned down the list.
-          <span aria-hidden className="mt-px h-[21px] w-[21px] flex-none" />
+          <span aria-hidden className="h-[21px] w-[21px] flex-none" />
         ) : (
           <button
             type="button"
@@ -151,99 +203,128 @@ function WeeklyRow({
             disabled={series}
             title={series ? 'Recurring tasks complete through their days' : undefined}
             onClick={() => onToggle(task.id)}
-            className={`mt-px ${checkboxClass(task.completed, 'md')}`}
+            className={checkboxClass(task.completed, 'md')}
           >
             {task.completed && <Check className="h-[13px] w-[13px] text-sand-50" strokeWidth={3} />}
           </button>
         )}
-
-        <div className="min-w-0 flex-1">
-          <button
-            type="button"
+        {/* -ml trims the row gap to 7px between the checkbox and the number. The block carries
+            the hanging indent; the float resets it (text-indent inherits). */}
+        <div
+          className={`-ml-[5px] min-w-0 flex-1 text-[15px] leading-[21px] ${numberedText(wide)}`}
+        >
+          <div className="float-right -mr-[6px] ml-2 flex flex-col items-end indent-0">
+            <div className={`${LINE} gap-[7px]`}>
+              {task.estMinutes != null && (
+                <span className="whitespace-nowrap font-data text-[12px] text-muted">
+                  ~{task.estMinutes} min
+                </span>
+              )}
+              {series ? (
+                <span className="font-data text-[12px] text-muted">
+                  {task.doneCount} of {task.target}
+                </span>
+              ) : (
+                task.completed && (
+                  <Check className="h-[13px] w-[13px] text-green-500" strokeWidth={3} />
+                )
+              )}
+              {series && <Repeat className="h-[12px] w-[12px] text-muted" aria-label="Repeats" />}
+              {tag && !stackTag && <span className={TAG_CLASS}>{tag}</span>}
+              {task.riskFactor && <span className={RISK_TAG_CLASS}>Risk factor</span>}
+              {task.carried && <span className={CHIP_CLASS}>Carried over</span>}
+              {task.carriedTo != null && (
+                <span className="whitespace-nowrap text-[12px] text-faint">
+                  → carried to week of {shortDate(task.carriedTo)}
+                </span>
+              )}
+              {reorder.handle(index, task.title)}
+            </div>
+            {/* A second LINE box, so the pill centres on the title's second line. */}
+            {stackTag && (
+              <div className={LINE}>
+                <span className={TAG_CLASS}>{tag}</span>
+              </div>
+            )}
+          </div>
+          <span
+            role="button"
+            tabIndex={0}
             onClick={() => onEdit(task.id)}
-            className={`block max-w-full break-words text-left text-[15px] leading-[1.4] hover:underline ${
-              task.completed ? 'text-faint line-through' : 'text-body'
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onEdit(task.id)
+              }
+            }}
+            className={`cursor-pointer break-words hover:underline ${
+              task.completed ? STRIKE_CLASS : isNext ? 'font-semibold text-ink' : 'text-body'
             }`}
           >
-            {task.title}
-          </button>
-
-          <div className="mt-[5px] flex flex-wrap items-center gap-[7px]">
-            {series ? (
-              <span className="font-data text-[12px] text-muted">
-                {task.doneCount} of {task.target}
-              </span>
-            ) : (
-              task.completed && (
-                <Check className="h-[13px] w-[13px] text-green-500" strokeWidth={3} />
-              )
-            )}
-            {series && <Repeat className="h-[12px] w-[12px] text-muted" aria-label="Repeats" />}
-            {tag && <span className={TAG_CLASS}>{tag}</span>}
-            {task.riskFactor && <span className={RISK_TAG_CLASS}>Risk factor</span>}
-            {task.carried && <span className={CHIP_CLASS}>Carried over</span>}
-            {task.carriedTo != null && (
-              <span className="text-[12px] text-faint">
-                → carried to week of {shortDate(task.carriedTo)}
-              </span>
-            )}
-          </div>
-
-          <div className="mt-[6px] flex flex-wrap items-center gap-1">
-            {canAddDay && (
-              <button type="button" onClick={() => setPicking((v) => !v)} className={ACTION_CLASS}>
-                Add to a day
-              </button>
-            )}
-            {stoppable && !confirming && (
-              <button type="button" onClick={() => setConfirming(true)} className={ACTION_CLASS}>
-                Stop repeating
-              </button>
-            )}
-          </div>
-
-          {picking && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)).map((day) => (
-                <button
-                  key={day}
-                  type="button"
-                  onClick={() => {
-                    setPicking(false)
-                    onAddToDay(task.id, day)
-                  }}
-                  className="rounded-full border border-border-strong px-[9px] py-[2px] text-[12px] font-semibold text-body transition-colors hover:bg-brand-soft hover:text-brand"
-                >
-                  {weekdayShort(day)}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {confirming && (
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] text-body">
-              <span>Make this a one-off task? Unfinished days after today are removed.</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setConfirming(false)
-                  onStopRepeating(task.id)
-                }}
-                className="rounded-md bg-brand px-[10px] py-[3px] text-[12px] font-semibold text-on-brand"
-              >
-                Stop
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirming(false)}
-                className="rounded-md px-2 py-[3px] text-[12px] font-semibold text-muted hover:bg-hover"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
+            <ListNumber n={index + 1} wide={wide} completed={task.completed} />
+            {NO_BREAK}
+            {breakable(task.title)}
+          </span>
         </div>
       </div>
+
+      {(canAddDay || stoppable) && (
+        <div className={`${UNDER_TITLE} mt-[4px] flex flex-wrap items-center gap-1`}>
+          {canAddDay && (
+            <button type="button" onClick={() => setPicking((v) => !v)} className={ACTION_CLASS}>
+              Add to a day
+            </button>
+          )}
+          {stoppable && !confirming && (
+            <button type="button" onClick={() => setConfirming(true)} className={ACTION_CLASS}>
+              Stop repeating
+            </button>
+          )}
+        </div>
+      )}
+
+      {picking && (
+        <div className={`${UNDER_TITLE} mt-2 flex flex-wrap gap-1`}>
+          {Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)).map((day) => (
+            <button
+              key={day}
+              type="button"
+              onClick={() => {
+                setPicking(false)
+                onAddToDay(task.id, day)
+              }}
+              className="rounded-full border border-border-strong px-[9px] py-[2px] text-[12px] font-semibold text-body transition-colors hover:bg-brand-soft hover:text-brand"
+            >
+              {weekdayShort(day)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {confirming && (
+        <div
+          className={`${UNDER_TITLE} mt-2 flex flex-wrap items-center gap-2 text-[13px] text-body`}
+        >
+          <span>Make this a one-off task? Unfinished days after today are removed.</span>
+          <button
+            type="button"
+            onClick={() => {
+              setConfirming(false)
+              onStopRepeating(task.id)
+            }}
+            className="rounded-md bg-brand px-[10px] py-[3px] text-[12px] font-semibold text-on-brand"
+          >
+            Stop
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            className="rounded-md px-2 py-[3px] text-[12px] font-semibold text-muted hover:bg-hover"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
     </li>
   )
 }

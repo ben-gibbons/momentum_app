@@ -1,6 +1,6 @@
 {
   "name": "momentum_app",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Momentum Windows App: a productivity and distraction monitoring app with CBT-based interventions",
   "main": "./out/main/index.js",
   "author": "Ben Gibbons",

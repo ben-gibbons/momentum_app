@@ -5,15 +5,18 @@
 // and a weekly tick mirrors onto its daily — so any write reloads both. Day columns show each
 // day's dailies as compact rows; projected future occurrences of a series (id null) are greyed,
 // not tickable and marked "planned"; a carried original (or a moved series day) shows "→ carried"
-// / "→ moved" with its new date and is not tickable — its copy is the live row.
+// / "→ moved" with its new date and is not tickable — its copy is the live row. Rows are numbered
+// in the day's list order (V2 item 7) — the order set on Home / the Day view, or by the weekly
+// list, whose drag handle is the one reorder control on this view (none on the columns).
 import { useEffect, useRef, useState } from 'react'
 import { Check, Clock, Plus } from 'lucide-react'
 import type { DailyTask } from '../../../../shared/types'
 import { addDays, dayBoundaries } from '../../../../shared/dates'
 import { api, ipcErrorMessage } from '../../lib/api'
 import { useAsync } from '../../lib/useAsync'
-import { shortDate } from '../../lib/format'
+import { breakable, shortDate } from '../../lib/format'
 import { WeeklyList } from './WeeklyList'
+import { ListNumber, NO_BREAK, STRIKE_CLASS } from '../Reorder'
 import {
   checkboxClass,
   dailyKey,
@@ -78,6 +81,7 @@ export function WeekView({
           onStopRepeating={(id) => run(() => api.tasks.update(id, { repeatDays: 0 }))}
           onEdit={onEdit}
           onCreate={onCreate}
+          onReorder={(ids) => run(() => api.tasks.reorder(ids))}
         />
 
         <div className="grid grid-cols-7 divide-x divide-border-subtle overflow-hidden rounded-xl border border-border-default bg-card shadow-sm">
@@ -144,10 +148,12 @@ function DayColumn({
       </div>
 
       <div className="flex flex-1 flex-col gap-[2px] px-[6px] py-[6px]">
-        {tasks.map((task) => (
+        {tasks.map((task, i) => (
           <DayTaskRow
             key={dailyKey(task)}
             task={task}
+            number={i + 1}
+            wide={tasks.length >= 10}
             highlighted={task.id != null && task.id === highlightId}
             onToggle={onToggle}
             onEdit={onEdit}
@@ -160,12 +166,21 @@ function DayColumn({
 
 interface DayTaskRowProps {
   task: DailyTask
+  number: number
+  wide: boolean // ten or more rows that day: two-digit number column
   highlighted: boolean
   onToggle: (taskId: number) => void
   onEdit: (taskId: number) => void
 }
 
-function DayTaskRow({ task, highlighted, onToggle, onEdit }: DayTaskRowProps): React.JSX.Element {
+function DayTaskRow({
+  task,
+  number,
+  wide,
+  highlighted,
+  onToggle,
+  onEdit
+}: DayTaskRowProps): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (highlighted) ref.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
@@ -173,10 +188,17 @@ function DayTaskRow({ task, highlighted, onToggle, onEdit }: DayTaskRowProps): R
 
   const projected = task.id == null
   const superseded = task.carried && task.carriedTo != null
+  const edit = (): void => {
+    if (task.id != null) onEdit(task.id)
+  }
   return (
+    // The column is narrow, so the row is text flow rather than a flex row: the checkbox and the
+    // number are inline at the start of the title, and a wrapped title's later lines run the
+    // full width under the checkbox. The title is a span (a <button> would be an atomic box and
+    // could not wrap around the checkbox), so it carries the button role and keys itself.
     <div
       ref={ref}
-      className={`flex items-start gap-[6px] rounded-md px-1 py-[5px] ${projected ? 'opacity-50' : ''} ${
+      className={`rounded-md px-1 py-[5px] text-[13px] leading-[18px] ${projected ? 'opacity-50' : ''} ${
         highlighted ? HIGHLIGHT_CLASS : ''
       }`}
     >
@@ -186,22 +208,31 @@ function DayTaskRow({ task, highlighted, onToggle, onEdit }: DayTaskRowProps): R
         disabled={projected || superseded}
         title={projected ? 'Planned — created when its week starts' : undefined}
         onClick={() => task.id != null && onToggle(task.id)}
-        className={`mt-[2px] ${checkboxClass(task.completed, 'sm')}`}
+        className={`mr-[4px] inline-flex align-[-3px] ${checkboxClass(task.completed, 'sm')}`}
       >
         {task.completed && <Check className="h-[10px] w-[10px] text-sand-50" strokeWidth={3} />}
       </button>
-      <div className="min-w-0 flex-1 leading-tight">
-        <button
-          type="button"
-          disabled={projected}
-          title={task.title}
-          onClick={() => task.id != null && onEdit(task.id)}
-          className={`block max-w-full break-words text-left text-[13px] leading-snug ${
-            task.completed ? 'text-faint line-through' : 'text-body'
-          } ${projected ? '' : 'hover:underline'}`}
-        >
-          {task.title}
-        </button>
+      <span
+        role="button"
+        tabIndex={projected ? -1 : 0}
+        aria-disabled={projected || undefined}
+        title={task.title}
+        onClick={projected ? undefined : edit}
+        onKeyDown={(e) => {
+          if (!projected && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault()
+            edit()
+          }
+        }}
+        className={`break-words ${task.completed ? STRIKE_CLASS : 'text-body'} ${
+          projected ? '' : 'cursor-pointer hover:underline'
+        }`}
+      >
+        <ListNumber n={number} wide={wide} completed={task.completed} />
+        {NO_BREAK}
+        {breakable(task.title)}
+      </span>
+      <div className="leading-tight">
         {task.due && (
           <span className="mt-[1px] inline-flex items-center gap-[3px] font-data text-[10px] text-muted">
             <Clock className="h-[10px] w-[10px]" /> {task.due}

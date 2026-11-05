@@ -82,7 +82,7 @@ src/
       splash.ts           # splash.html's script: tokens + fonts, then app:splashDone after one 3.23 s loop
       App.tsx             # Sidebar routing shell; mounts Nudge + the log overlay; TimersProvider; push:dayChanged / push:openTask / push:openTimer (TimerDone dialog)
       lib/                # api accessor (api.ts), useAsync hook, formatters, timers store (timers.tsx)
-      components/         # presentational components; RangeNav; log/ (fields, Stepper, Timer, LogReview, LogDetail), risk/, settings/ subfolders; TimersTile, TimerDone
+      components/         # presentational components; RangeNav; Reorder (list number + drag handle + useReorder); log/ (fields, Stepper, Timer, LogReview, LogDetail), risk/, settings/ subfolders; TimersTile, TimerDone
         tasks/            # TaskDialog (create / edit / delete / stop repeating), RepeatPicker, WeekdayPicker, StepsEditor
         calendar/         # WeekView, DayView, MonthView, WeeklyList, shared.ts (labels, keys)
         session/          # TrendsChart, MonthChart, BreakdownList, StatBar, SessionStatGrid
@@ -104,7 +104,7 @@ scripts/
 
 ```bash
 npm test               # vitest under system Node — pure modules: dates, recurrence, classifier, threshold detector (59 tests)
-npm run test:electron  # vitest under Electron's Node — the DB-backed suites: db (migrations), routine, tasks, sessions (52 tests)
+npm run test:electron  # vitest under Electron's Node — the DB-backed suites: db (migrations), routine, tasks, sessions (64 tests)
 ```
 
 The DB-backed suites open a real `better-sqlite3` database, which `postinstall` rebuilds for Electron's ABI, so plain `npm test` cannot load it and those suites skip themselves there; `scripts/test-electron.mjs` runs vitest with `ELECTRON_RUN_AS_NODE=1` instead. Extra arguments pass through (`npm run test:electron -- --watch`).
